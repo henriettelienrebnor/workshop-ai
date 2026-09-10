@@ -18,7 +18,7 @@ import { samtykkekilderFor, selectOrdningForTjeneste } from "./vilkaar.ts";
 import type { Datakilde } from "../../shared/samtykke.ts";
 import { finnGjeldendeLegeerklaering } from "./pasientjournal.ts";
 import { maskinportenHeader } from "../../digdir-mock/src/client.ts";
-import { fiksBaseUrl, fiksRegisterToken, fiksRolleId } from "./config.ts";
+import { aiBaseUrl, fiksBaseUrl, fiksRegisterToken, fiksRolleId } from "./config.ts";
 import { buildAdvarsel, tryUpstream } from "./upstream.ts";
 import { addRevisjon } from "./revisjon.ts";
 import { compilePathPattern, matchPath, type PathParams } from "./routing.ts";
@@ -73,6 +73,38 @@ function samtykkeForOrdningssjekk(kontekst: RessursContext): Datakilde | null {
     return samtykkekilderFor(ordning.regel)[0] ?? null;
   } catch {
     return "inntekt";
+  }
+}
+
+function boolskQueryverdi(verdi: string | null): boolean | null {
+  if (verdi === "true") return true;
+  if (verdi === "false") return false;
+  return null;
+}
+
+async function lagIngenSoknadOppsummering(fasadeendring: boolean, endringBaerekonstruksjon: boolean): Promise<string> {
+  const fallback = "Ut fra opplysningene dine endrer vindusbyttet verken fasaden eller bærekonstruksjonen. Du trenger derfor ikke sende inn informasjon til kommunen eller kontakte entreprenør for dette tiltaket.";
+  try {
+    const response = await fetch(`${aiBaseUrl}/ai/oppsummering`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kontekst: {
+          tjeneste: "Byggesøknad",
+          utfall: "INGEN_SOKNAD",
+          fasadeendring,
+          endringBaerekonstruksjon,
+          instruksjon: "Forklar kort at tiltaket ikke er en fasadeendring, ikke berører bærekonstruksjonen, og derfor ikke skal sendes til kommunen eller entreprenør. Ikke si at søknaden sendes inn."
+        },
+        sprak: "nb"
+      })
+    });
+    const data = await response.json() as { tekst?: unknown };
+    return response.ok && typeof data.tekst === "string" && data.tekst.trim()
+      ? data.tekst.trim()
+      : fallback;
+  } catch {
+    return fallback;
   }
 }
 
@@ -515,6 +547,48 @@ export const ressurser: Ressurs[] = [
           ? `Andre eiendommer i ${eiendom.adressenavn}. En fullstendig naboliste bygger på geometri, ikke gatenavn.`
           : "Fant ingen gate å hente naboer fra.",
         syntetisk: true
+      };
+    }
+  },
+  {
+    metode: "GET",
+    sti: "/api/byggesoknad/sjekk/tiltaksomfang",
+    ressurs: "byggesoknad-tiltaksomfang",
+    beskrivelse: "SJEKK: avgjør neste byggesøknad-steg etter avklart vindusbytte.",
+    formaal: "Vurdere om vindusbytte skal sendes som byggesøknad",
+    handter: async ({ sok }) => {
+      const fasadeendring = boolskQueryverdi(sok.get("fasadeendring"));
+      const endringBaerekonstruksjon = boolskQueryverdi(sok.get("endringBaerekonstruksjon"));
+
+      if (fasadeendring === null || endringBaerekonstruksjon === null) {
+        return {
+          godkjent: false,
+          melding: "Jeg mangler en sikker avklaring av om vinduet endrer fasaden eller bærekonstruksjonen. Beskriv tiltaket litt mer før du går videre.",
+          grunnlag: { fasadeendring, endringBaerekonstruksjon, status: "MANGLER_AVKLARING" }
+        };
+      }
+
+      if (endringBaerekonstruksjon) {
+        return {
+          godkjent: false,
+          melding: "Tiltaket kan berøre bærekonstruksjonen. Da bør du snakke med en entreprenør eller ansvarlig fagperson før du går videre, og denne veilederen sender ikke inn søknad nå.",
+          grunnlag: { fasadeendring, endringBaerekonstruksjon, status: "TRENGER_ENTREPRENOER" }
+        };
+      }
+
+      if (fasadeendring) {
+        return {
+          godkjent: true,
+          melding: "Tiltaket er avklart som en fasadeendring uten oppgitt endring i bærekonstruksjonen. Du kan gå videre til innsending av byggesøknadsskjema.",
+          grunnlag: { fasadeendring, endringBaerekonstruksjon, status: "SEND_SKJEMA" }
+        };
+      }
+
+      const melding = await lagIngenSoknadOppsummering(fasadeendring, endringBaerekonstruksjon);
+      return {
+        godkjent: false,
+        melding,
+        grunnlag: { fasadeendring, endringBaerekonstruksjon, status: "INGEN_SOKNAD" }
       };
     }
   },

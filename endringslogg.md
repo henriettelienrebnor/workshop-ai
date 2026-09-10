@@ -64,6 +64,18 @@ Hvis planen har en bestemmelse om vinduer mot gate, aktiveres et krav om å avkl
 
 Chatten skiller nå bedre mellom svar og veiledningsspørsmål. Hvis brukeren spør hva en endring i bærekonstruksjon betyr, forklarer chatten begrepet før den fortsetter avklaringen. Et slikt spørsmål skal ikke gi høy confidence for `endringBaerekonstruksjon`, siden brukeren ikke har oppgitt fakta om eget tiltak.
 
+## Videre utfall i prosessen
+
+Etter `avklar-tiltak` ligger nå SJEKK-steget `sjekk-tiltaksomfang`. Det kaller `/api/byggesoknad/sjekk/tiltaksomfang` med de to avklarte feltene fra samtalen.
+
+Utfallet bestemmes i backend:
+
+- Hvis `endringBaerekonstruksjon` er `true`, stopper prosessen. Brukeren får beskjed om å snakke med entreprenør eller ansvarlig fagperson før videre arbeid.
+- Hvis `fasadeendring` er `true` og bærekonstruksjonen ikke berøres, går prosessen videre til oppsummering og innsending av byggesøknadsskjema.
+- Hvis begge er `false`, stopper prosessen. Brukeren får en oppsummering av at tiltaket ikke endrer fasaden eller bærekonstruksjonen, og at det derfor ikke skal sendes informasjon til kommunen eller entreprenør for dette tiltaket.
+
+AI kan formulere oppsummeringen for utfallet `INGEN_SOKNAD`, men selve utfallet er allerede bestemt av backend. Hvis AI-gateway ikke svarer, brukes en fast fallbacktekst med samme konklusjon.
+
 ## Logging
 
 `ai-gateway` logger nå tydelig hva som er trukket ut og validert for `POST /ai/tolk-tiltaksomfang`:

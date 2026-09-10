@@ -858,6 +858,32 @@
             "hensikt": "Beslutningsport for vindusbytter: KI trekker ut de to boolske feltene fra fritekst via POST /ai/tolk-tiltaksomfang, med en confidence per felt. Feltene her er fallback-skjemaet hvis samtalen ikke lander på et svar - selve avgjørelsen (fortsett / trenger entreprenør / ingen søknad nødvendig) tas deterministisk i sjekk-tiltaksomfang rett etter, aldri av KI-en.",
             "skrivetips": "Grunnlaget fra reguleringsplanen (hensynssoner, bestemmelser om fasade/vinduer/bevaring) fra hent-saksgrunnlag bør sendes med som kontekst til KI-kallet, slik at et vernet bygg kan forklares for bruker underveis."
           }
+        },
+        {
+          "id": "sjekk-tiltaksomfang",
+          "type": "SJEKK",
+          "tittel": "Avgjør hva som må skje videre",
+          "tekst": "Jeg vurderer om tiltaket skal sendes som byggesøknad, eller om du må få hjelp videre på en annen måte.",
+          "api": {
+            "method": "GET",
+            "url": "/api/byggesoknad/sjekk/tiltaksomfang?fasadeendring={svar.avklar-tiltak.fasadeendring}&endringBaerekonstruksjon={svar.avklar-tiltak.endringBaerekonstruksjon}"
+          },
+          "forfatterhjelp": {
+            "hensikt": "Backend avgjør utfallet deterministisk. Endring i bærekonstruksjonen stopper prosessen med beskjed om entreprenør. Fasadeendring uten konstruksjonsendring går videre til skjema. Ingen av delene stopper prosessen med beskjed om at tiltaket ikke trenger innsending.",
+            "skrivetips": "Ikke flytt denne avgjørelsen til KI. KI kan trekke ut og formulere, men SJEKK-steget bestemmer prosessutfallet."
+          }
+        },
+        {
+          "id": "oppsummer-byggesoknad",
+          "type": "SUMMARY",
+          "tittel": "Oppsummer byggesøknaden",
+          "tekst": "Jeg lager en kort oppsummering før skjemaet sendes inn."
+        },
+        {
+          "id": "send-byggesoknad",
+          "type": "SUBMIT",
+          "tittel": "Send inn byggesøknad",
+          "tekst": "Tiltaket ser ut til å være en fasadeendring som kan sendes inn til kommunen. Vil du sende inn skjemaet nå?"
         }
       ],
       "syntetisk": true

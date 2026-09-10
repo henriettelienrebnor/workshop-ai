@@ -748,6 +748,10 @@ function buildTemplateResponse(type: string, body: AiKropp) {
   }
 
   function buildOppsummeringstekst() {
+    if (body?.kontekst?.utfall === "INGEN_SOKNAD") {
+      return "Ut fra opplysningene dine endrer vindusbyttet verken fasaden eller bærekonstruksjonen. Du trenger derfor ikke sende inn informasjon til kommunen eller kontakte entreprenør for dette tiltaket.";
+    }
+
     const fartsdempendeOppsummering = buildFartsdempendeOppsummering();
     if (fartsdempendeOppsummering) {
       return fartsdempendeOppsummering;
@@ -957,7 +961,9 @@ function buildPrompt(type: string, body: AiKropp, fallbackTekst: string): string
   return [
     "Du er en hjelpsom assistent i en kommunal demosandkasse.",
     `Svar kort på ${sprakNavn} med klart språk uten personopplysninger utover det som er gitt.`,
-    "Når du oppsummerer, si tydelig hva som ble funnet og hva som sendes inn.",
+    kontekst.utfall === "INGEN_SOKNAD"
+      ? "Når du oppsummerer, si tydelig at ingenting sendes inn fordi utfallet allerede er bestemt til ingen søknad."
+      : "Når du oppsummerer, si tydelig hva som ble funnet og hva som sendes inn.",
     ...sperrer,
     `Oppgavetype: ${type}`,
     `Tjeneste: ${kontekst.tjeneste || "ukjent"}`,
@@ -1498,7 +1504,7 @@ const fasadeKjennetegn: FasadeKjennetegn[] = [
     id: "storrelse",
     label: "størrelse",
     endret: ["større", "storre", "mindre", "annen størrelse", "annen storrelse", "ny størrelse", "ny storrelse"],
-    uendret: ["samme størrelse", "samme storrelse", "lik størrelse", "lik storrelse", "uendret størrelse", "uendret storrelse"],
+    uendret: ["samme størrelse", "samme storrelse", "lik størrelse", "lik storrelse", "uendret størrelse", "uendret storrelse", "ikke annen størrelse", "ikke annen storrelse", "ikke endre størrelse", "ikke endre storrelse", "ingen størrelsesendring", "ingen storrelsesendring"],
     planord: ["størrelse", "storrelse", "større", "mindre"]
   },
   {
@@ -1546,9 +1552,63 @@ function treff(tekst: string, uttrykk: string[]): boolean {
 function tiltaksomfangTekst(body: AiKropp): string {
   const historikk = Array.isArray(body?.history) ? body.history : [];
   return normalizeText([
-    ...historikk.map((tur) => tur?.message || ""),
+    ...historikk
+      .filter((tur) => tur?.role !== "assistent" && tur?.role !== "assistant")
+      .map((tur) => tur?.message || ""),
     body?.tekst || ""
   ].join(" "));
+}
+
+function harBredUendretBeskrivelse(tekst: string): boolean {
+  return treff(tekst, [
+    "helt likt",
+    "helt lik",
+    "akkurat likt",
+    "akkurat lik",
+    "samme som i dag",
+    "ingen endringer",
+    "ingen andre endringer",
+    "alt er likt"
+  ]);
+}
+
+function harUendretKjennetegn(tekst: string, kjennetegn: FasadeKjennetegn): boolean {
+  if (treff(tekst, kjennetegn.uendret)) return true;
+  const ordliste = tekst.split(" ").filter(Boolean);
+  const markorIndex = ordliste.findIndex((ord) => ["samme", "lik", "likt", "uendret"].includes(ord));
+  if (markorIndex === -1) return false;
+
+  const somIDagIndex = ordliste.findIndex((ord, indeks) => indeks > markorIndex && ord === "som" && ordliste[indeks + 1] === "i" && ordliste[indeks + 2] === "dag");
+  const scope = somIDagIndex > markorIndex
+    ? ordliste.slice(markorIndex + 1, somIDagIndex)
+    : ordliste.slice(markorIndex + 1, markorIndex + 10);
+  if (!scope.length) return false;
+
+  const scopeSet = new Set(scope);
+  return kjennetegn.planord.some((planord) => normalizeText(planord).split(" ").some((ord) => scopeSet.has(ord)));
+}
+
+function harAvklartKjennetegn(tekst: string, kjennetegn: FasadeKjennetegn): boolean {
+  return treff(tekst, kjennetegn.endret) || harUendretKjennetegn(tekst, kjennetegn);
+}
+
+function harSammeVindusaapning(tekst: string): boolean {
+  return harUendretKjennetegn(tekst, fasadeKjennetegn[0]) && harUendretKjennetegn(tekst, fasadeKjennetegn[2]);
+}
+
+function naturligListe(verdier: string[]): string {
+  if (verdier.length <= 1) return verdier[0] || "";
+  if (verdier.length === 2) return verdier.join(" og ");
+  return `${verdier.slice(0, -1).join(", ")} og ${verdier[verdier.length - 1]}`;
+}
+
+function storForbokstav(tekst: string): string {
+  return tekst ? tekst[0].toUpperCase() + tekst.slice(1) : tekst;
+}
+
+function sporsmalsliste(deler: string[]): string {
+  if (deler.length <= 1) return `${deler[0] || "kan du beskrive tiltaket litt mer"}?`;
+  return `${deler.slice(0, -1).map((del) => `${del}?`).join(" ")} ${storForbokstav(deler[deler.length - 1])}?`;
 }
 
 function erVeiledningssporsmaalOmBaering(tekst: string): boolean {
@@ -1563,29 +1623,40 @@ function relevanteKjennetegnFraPlan(body: AiKropp): FasadeKjennetegn[] {
   return fraPlan.length ? fraPlan : fasadeKjennetegn;
 }
 
-function vurderFasadeendring(body: AiKropp): { felt: Feltavklaring; mangler: string[]; kilde: string } {
+function vurderFasadeendring(body: AiKropp): { felt: Feltavklaring; mangler: string[]; avklart: string[]; kilde: string } {
   const tekst = tiltaksomfangTekst(body);
   const relevante = relevanteKjennetegnFraPlan(body);
   const endret = relevante.find((kjennetegn) => treff(tekst, kjennetegn.endret) && !treff(tekst, kjennetegn.uendret));
   if (endret) {
-    return { felt: { verdi: true, confidence: 0.9 }, mangler: [], kilde: `Bruker oppga endring i ${endret.label}.` };
+    return { felt: { verdi: true, confidence: 0.9 }, mangler: [], avklart: [endret.label], kilde: `Bruker oppga endring i ${endret.label}.` };
   }
 
+  if (harBredUendretBeskrivelse(tekst)) {
+    return { felt: { verdi: false, confidence: 0.9 }, mangler: [], avklart: relevante.map((kjennetegn) => kjennetegn.label), kilde: "Bruker oppga at vinduet blir helt likt som i dag." };
+  }
+
+  const avklart = relevante
+    .filter((kjennetegn) => harAvklartKjennetegn(tekst, kjennetegn))
+    .map((kjennetegn) => kjennetegn.label);
   const mangler = relevante
-    .filter((kjennetegn) => !treff(tekst, kjennetegn.uendret))
+    .filter((kjennetegn) => !harUendretKjennetegn(tekst, kjennetegn))
     .map((kjennetegn) => kjennetegn.label);
 
   if (mangler.length === 0) {
-    return { felt: { verdi: false, confidence: 0.85 }, mangler, kilde: "Bruker har dekket planens relevante fasadekjennetegn." };
+    return { felt: { verdi: false, confidence: 0.85 }, mangler, avklart, kilde: "Bruker har dekket planens relevante fasadekjennetegn." };
   }
 
-  return { felt: { verdi: null, confidence: 0.35 }, mangler, kilde: "Bruker har bare dekket deler av fasadeavklaringen." };
+  return { felt: { verdi: null, confidence: 0.35 }, mangler, avklart, kilde: "Bruker har bare dekket deler av fasadeavklaringen." };
 }
 
 function vurderBaerekonstruksjon(body: AiKropp): Feltavklaring {
   const tekst = tiltaksomfangTekst(body);
   if (erVeiledningssporsmaalOmBaering(normalizeText(body?.tekst || ""))) {
     return { verdi: null, confidence: 0.2 };
+  }
+
+  if (harBredUendretBeskrivelse(tekst)) {
+    return { verdi: false, confidence: 0.85 };
   }
 
   const avkreftet = treff(tekst, [
@@ -1597,25 +1668,39 @@ function vurderBaerekonstruksjon(body: AiKropp): Feltavklaring {
     "ingen endring i baerekonstruksjon",
     "ikke endre bærevegg",
     "ikke endre baerevegg",
+    "ikke endre konstruksjon",
+    "ikke endre konstruksjonen",
     "ingen bærende vegg",
     "ingen baerende vegg",
-    "uten å endre veggen"
+    "uten å endre veggen",
+    "samme åpning",
+    "samme apning",
+    "samme hull"
   ]);
   if (avkreftet) return { verdi: false, confidence: 0.9 };
 
   const bekreftet = treff(tekst, [
-    "bærende vegg",
-    "baerende vegg",
-    "bærevegg",
-    "baerevegg",
-    "bærekonstruksjon",
-    "baerekonstruksjon",
-    "endre vegg",
+    "endre bærende vegg",
+    "endre baerende vegg",
+    "endre bærevegg",
+    "endre baerevegg",
+    "endre bærekonstruksjon",
+    "endre baerekonstruksjon",
+    "berører bærende",
+    "berorer baerende",
+    "berører bærekonstruksjon",
+    "berorer baerekonstruksjon",
+    "må forsterkes",
+    "ma forsterkes",
     "større hull",
     "storre hull",
     "nytt hull"
   ]);
   if (bekreftet) return { verdi: true, confidence: 0.9 };
+
+  if (harSammeVindusaapning(tekst)) {
+    return { verdi: false, confidence: 0.85 };
+  }
 
   return { verdi: null, confidence: 0.3 };
 }
@@ -1629,19 +1714,26 @@ function settHvisKjent<T extends Record<string, unknown>, K extends keyof T>(obj
 function boolFraTekst(tekst: string, ja: string[], nei: string[]): boolean | null {
   const harNei = treff(tekst, nei);
   const harJa = treff(tekst, ja);
+  if (harNei) return false;
   if (harJa && !harNei) return true;
-  if (harNei && !harJa) return false;
+  return null;
+}
+
+function boolFraKjennetegn(tekst: string, kjennetegn: FasadeKjennetegn): boolean | null {
+  const harJa = treff(tekst, kjennetegn.endret);
+  if (harJa && !treff(tekst, kjennetegn.uendret)) return true;
+  if (harUendretKjennetegn(tekst, kjennetegn)) return false;
   return null;
 }
 
 function byggVindustiltak(svar: Tiltaksavklaring, body: AiKropp, fasade: { felt: Feltavklaring }, baering: Feltavklaring): Vindustiltak {
   const tekst = tiltaksomfangTekst(body);
   const tiltak: Vindustiltak = structuredClone(svar.tiltak ?? TOMT_VINDUSTILTAK);
-  settHvisKjent(tiltak.visuelt, "storrelseEndres", boolFraTekst(tekst, fasadeKjennetegn[0].endret, fasadeKjennetegn[0].uendret));
-  settHvisKjent(tiltak.visuelt, "plasseringEndres", boolFraTekst(tekst, fasadeKjennetegn[2].endret, fasadeKjennetegn[2].uendret));
-  settHvisKjent(tiltak.visuelt, "hovedinndelingEndres", boolFraTekst(tekst, fasadeKjennetegn[3].endret, fasadeKjennetegn[3].uendret));
-  settHvisKjent(tiltak.visuelt, "fargeEndres", boolFraTekst(tekst, fasadeKjennetegn[4].endret, fasadeKjennetegn[4].uendret));
-  settHvisKjent(tiltak.visuelt, "materialeEndres", boolFraTekst(tekst, fasadeKjennetegn[5].endret, fasadeKjennetegn[5].uendret));
+  settHvisKjent(tiltak.visuelt, "storrelseEndres", boolFraKjennetegn(tekst, fasadeKjennetegn[0]));
+  settHvisKjent(tiltak.visuelt, "plasseringEndres", boolFraKjennetegn(tekst, fasadeKjennetegn[2]));
+  settHvisKjent(tiltak.visuelt, "hovedinndelingEndres", boolFraKjennetegn(tekst, fasadeKjennetegn[3]));
+  settHvisKjent(tiltak.visuelt, "fargeEndres", boolFraKjennetegn(tekst, fasadeKjennetegn[4]));
+  settHvisKjent(tiltak.visuelt, "materialeEndres", boolFraKjennetegn(tekst, fasadeKjennetegn[5]));
   settHvisKjent(tiltak.plassering, "motGate", boolFraTekst(
     tekst,
     ["mot gate", "mot vei", "mot vegen", "mot veien"],
@@ -1723,21 +1815,24 @@ function planstyrteOppfolgingsdeler(body: AiKropp): string[] {
   return deler;
 }
 
-function byggTiltaksomfangOppfolging(fasade: { mangler: string[] }, baering: Feltavklaring, body: AiKropp): string {
+function byggTiltaksomfangOppfolging(fasade: { mangler: string[]; avklart: string[] }, baering: Feltavklaring, body: AiKropp): string {
   const planTekst = normalizeText(JSON.stringify(body?.kontekst?.reguleringsplan || {}));
   const vernet = ["h570", "bevaring", "kulturmiljø", "kulturmiljo"].some((ord) => planTekst.includes(ord));
   const deler = [];
   deler.push(...planstyrteOppfolgingsdeler(body));
   if (fasade.mangler.length) {
-    deler.push(`om vinduet får samme ${fasade.mangler.join(", ")} som i dag`);
+    deler.push(`får vinduet samme ${naturligListe(fasade.mangler)} som i dag`);
   }
   if (baering.verdi === null) {
-    deler.push("om arbeidet krever endring i bærende vegg eller konstruksjon");
+    deler.push("krever arbeidet endring i bærende vegg eller konstruksjon");
   }
   const intro = vernet
     ? "Planen har bevaringshensyn, så jeg må være litt presis:"
     : "Jeg må avklare litt mer:";
-  return `${intro} Kan du si ${deler.join(" og ")}?`;
+  const avklart = fasade.avklart.length
+    ? `Jeg har fått med meg det du sa om ${naturligListe(fasade.avklart)}. `
+    : "";
+  return `${intro} ${avklart}Kan du svare på det som fortsatt mangler: ${sporsmalsliste(deler)}`;
 }
 
 function medDeterministiskTiltaksomfangSjekk(svar: Tiltaksavklaring, body: AiKropp): Tiltaksavklaring {
