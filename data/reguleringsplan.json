@@ -1,0 +1,390 @@
+{
+  "kilde": {
+    "type": "syntetisk-demo",
+    "kildeNavn": "Forenklet kommunalt planregister",
+    "beskrivelse": "Syntetisk planregister koblet til eiendommer i data/matrikkel.json. Feltnavnene følger sentrale begreper fra offentlige arealplanregistre, men innholdet er laget for demo og er ikke juridisk grunnlag.",
+    "generertDato": "2026-09-10",
+    "koordinatsystem": "EPSG:4258"
+  },
+  "planer": [
+    {
+      "planId": "0301-2022001",
+      "planNavn": "Sentrumsplanen - bolig og bymiljø",
+      "plantype": "detaljregulering",
+      "planstatus": "vedtatt",
+      "kommunenummer": "0301",
+      "kommune": "OSLO",
+      "planbestemmelseDato": "2022-06-15",
+      "ikrafttredelsesdato": "2022-07-01",
+      "lovgrunnlag": "plan- og bygningsloven",
+      "formaal": [
+        {
+          "kode": "1110",
+          "navn": "boligbebyggelse",
+          "underformaal": "blokkbebyggelse"
+        },
+        {
+          "kode": "2012",
+          "navn": "gate"
+        }
+      ],
+      "hensynssoner": [
+        {
+          "kode": "H570",
+          "navn": "hensynssone bevaring kulturmiljø",
+          "beskrivelse": "Eksisterende bymiljø og fasader mot gate skal ivaretas."
+        }
+      ],
+      "bestemmelsesomraader": [],
+      "planbestemmelser": [
+        {
+          "bestemmelseId": "0301-2022001-B08",
+          "tema": "fasade",
+          "tekst": "Endring av fasade mot offentlig gate skal tilpasses eksisterende bygning og avklares med kommunen.",
+          "relevantFor": ["fasadeendring", "vindusendring"]
+        },
+        {
+          "bestemmelseId": "0301-2022001-B09",
+          "tema": "vinduer",
+          "tekst": "Vinduer mot gate skal ha samme hovedinndeling og visuelle uttrykk som eksisterende vinduer.",
+          "relevantFor": ["vindusendring", "fasadeendring"]
+        }
+      ],
+      "berorteEiendommer": [
+        {
+          "matrikkelId": "matr-geo-0301-10625-13A",
+          "gnr": 237,
+          "bnr": 49,
+          "festenummer": 0,
+          "undernummer": 0,
+          "adresse": "Biskop Jens Nilssøns gate 13A"
+        }
+      ]
+    },
+    {
+      "planId": "4601-2019007",
+      "planNavn": "Ådlandsstraumen boligområde",
+      "plantype": "detaljregulering",
+      "planstatus": "vedtatt",
+      "kommunenummer": "4601",
+      "kommune": "BERGEN",
+      "planbestemmelseDato": "2019-11-20",
+      "ikrafttredelsesdato": "2020-01-10",
+      "lovgrunnlag": "plan- og bygningsloven",
+      "formaal": [
+        {
+          "kode": "1110",
+          "navn": "boligbebyggelse",
+          "underformaal": "frittliggende småhusbebyggelse"
+        }
+      ],
+      "hensynssoner": [],
+      "bestemmelsesomraader": [],
+      "planbestemmelser": [
+        {
+          "bestemmelseId": "4601-2019007-B04",
+          "tema": "vinduer",
+          "tekst": "Utskifting av vinduer er tillatt når størrelse, plassering og hovedinndeling ikke endres.",
+          "relevantFor": ["vindusendring"]
+        },
+        {
+          "bestemmelseId": "4601-2019007-B05",
+          "tema": "farge_og_materialbruk",
+          "tekst": "Farge- og materialbruk på fasader skal ikke gi vesentlig endret karakter på boligområdet.",
+          "relevantFor": ["fasadeendring", "vindusendring"]
+        }
+      ],
+      "berorteEiendommer": [
+        {
+          "matrikkelId": "matr-geo-4601-34027-10",
+          "gnr": 112,
+          "bnr": 276,
+          "festenummer": 0,
+          "undernummer": 0,
+          "adresse": "Ådlandsstraumen 10"
+        }
+      ]
+    },
+    {
+      "planId": "1103-2016004",
+      "planNavn": "Løkkeveien byutvikling",
+      "plantype": "områderegulering",
+      "planstatus": "vedtatt",
+      "kommunenummer": "1103",
+      "kommune": "STAVANGER",
+      "planbestemmelseDato": "2016-03-16",
+      "ikrafttredelsesdato": "2016-04-01",
+      "lovgrunnlag": "plan- og bygningsloven",
+      "formaal": [
+        {
+          "kode": "1800",
+          "navn": "kombinert bebyggelse og anleggsformål",
+          "underformaal": "bolig og tjenesteyting"
+        }
+      ],
+      "hensynssoner": [
+        {
+          "kode": "H570",
+          "navn": "hensynssone bevaring kulturmiljø",
+          "beskrivelse": "Historisk bymiljø med særpreget trehusbebyggelse."
+        }
+      ],
+      "bestemmelsesomraader": [
+        {
+          "kode": "#3",
+          "navn": "bevaring av bygning",
+          "beskrivelse": "Bygningens hovedvolum, fasade og takform skal bevares."
+        }
+      ],
+      "planbestemmelser": [
+        {
+          "bestemmelseId": "1103-2016004-B12",
+          "tema": "bevaring",
+          "tekst": "På bevaringsverdige bygninger skal tiltak på fasade og vinduer utføres med særlig hensyn til bygningens kulturhistoriske verdi.",
+          "relevantFor": ["fasadeendring", "vindusendring"]
+        },
+        {
+          "bestemmelseId": "1103-2016004-B13",
+          "tema": "søknadspliktige_tiltak",
+          "tekst": "Nye eller større vindusåpninger mot gate skal forelegges kommunen før gjennomføring.",
+          "relevantFor": ["nytt_vindu", "storrelsesendring", "fasadeendring"]
+        }
+      ],
+      "berorteEiendommer": [
+        {
+          "matrikkelId": "matr-geo-1103-1624-1",
+          "gnr": 56,
+          "bnr": 764,
+          "festenummer": 0,
+          "undernummer": 0,
+          "adresse": "Løkkeveien 1"
+        }
+      ]
+    },
+    {
+      "planId": "1108-2021003",
+      "planNavn": "Bjønnbåsen boligfelt",
+      "plantype": "detaljregulering",
+      "planstatus": "vedtatt",
+      "kommunenummer": "1108",
+      "kommune": "SANDNES",
+      "planbestemmelseDato": "2021-09-29",
+      "ikrafttredelsesdato": "2021-11-01",
+      "lovgrunnlag": "plan- og bygningsloven",
+      "formaal": [
+        {
+          "kode": "1110",
+          "navn": "boligbebyggelse",
+          "underformaal": "frittliggende småhusbebyggelse"
+        }
+      ],
+      "hensynssoner": [],
+      "bestemmelsesomraader": [],
+      "planbestemmelser": [
+        {
+          "bestemmelseId": "1108-2021003-B06",
+          "tema": "fasade",
+          "tekst": "Fasadeendringer skal følge godkjent hovedutforming for boligtypen.",
+          "relevantFor": ["fasadeendring"]
+        }
+      ],
+      "berorteEiendommer": [
+        {
+          "matrikkelId": "matr-geo-1108-3990-10",
+          "gnr": 33,
+          "bnr": 420,
+          "festenummer": 0,
+          "undernummer": 0,
+          "adresse": "Bjønnbåsen 10"
+        }
+      ]
+    },
+    {
+      "planId": "1804-2013002",
+      "planNavn": "Havnefronten",
+      "plantype": "detaljregulering",
+      "planstatus": "vedtatt",
+      "kommunenummer": "1804",
+      "kommune": "BODØ",
+      "planbestemmelseDato": "2013-05-22",
+      "ikrafttredelsesdato": "2013-07-01",
+      "lovgrunnlag": "plan- og bygningsloven",
+      "formaal": [
+        {
+          "kode": "1110",
+          "navn": "boligbebyggelse",
+          "underformaal": "blokkbebyggelse"
+        },
+        {
+          "kode": "2011",
+          "navn": "koyreveg"
+        }
+      ],
+      "hensynssoner": [
+        {
+          "kode": "H320",
+          "navn": "hensynssone flomfare",
+          "beskrivelse": "Krav til sikkerhet mot flom gjelder for nye tiltak."
+        }
+      ],
+      "bestemmelsesomraader": [],
+      "planbestemmelser": [
+        {
+          "bestemmelseId": "1804-2013002-B10",
+          "tema": "fasade",
+          "tekst": "Fasader mot sjø og offentlig rom skal ha en helhetlig utforming."
+        },
+        {
+          "bestemmelseId": "1804-2013002-B11",
+          "tema": "vinduer",
+          "tekst": "Vinduer kan skiftes med tilsvarende plassering og størrelse uten endring av fasadens hoveduttrykk.",
+          "relevantFor": ["vindusendring"]
+        }
+      ],
+      "berorteEiendommer": [
+        {
+          "matrikkelId": "matr-geo-1804-14500-1",
+          "gnr": 138,
+          "bnr": 2040,
+          "festenummer": 0,
+          "undernummer": 0,
+          "adresse": "Havnegata 1"
+        }
+      ]
+    },
+    {
+      "planId": "1865-1998001",
+      "planNavn": "Lofoten kyst- og boligmiljø",
+      "plantype": "kommuneplanens_arealdel",
+      "planstatus": "vedtatt",
+      "kommunenummer": "1865",
+      "kommune": "VÅGAN",
+      "planbestemmelseDato": "1998-10-14",
+      "ikrafttredelsesdato": "1998-12-01",
+      "lovgrunnlag": "plan- og bygningsloven",
+      "formaal": [
+        {
+          "kode": "1110",
+          "navn": "boligbebyggelse"
+        }
+      ],
+      "hensynssoner": [
+        {
+          "kode": "H570",
+          "navn": "hensynssone bevaring kulturmiljø",
+          "beskrivelse": "Kystmiljø og tradisjonell bebyggelse skal ivaretas."
+        },
+        {
+          "kode": "H190",
+          "navn": "andre sikrings-, støy- og faresoner",
+          "beskrivelse": "Lokale bestemmelser kan gjelde for tiltak nær sjø."
+        }
+      ],
+      "bestemmelsesomraader": [],
+      "planbestemmelser": [
+        {
+          "bestemmelseId": "1865-1998001-B03",
+          "tema": "kulturmiljo",
+          "tekst": "Tiltak skal tilpasses lokal byggeskikk og landskap. Vesentlige fasadeendringer bør avklares med kommunen.",
+          "relevantFor": ["fasadeendring", "vindusendring"]
+        }
+      ],
+      "berorteEiendommer": [
+        {
+          "matrikkelId": "matr-geo-1865-5002-1",
+          "gnr": 16,
+          "bnr": 60,
+          "festenummer": 0,
+          "undernummer": 0,
+          "adresse": "Lundeveien 1"
+        }
+      ]
+    },
+    {
+      "planId": "5501-2020005",
+      "planNavn": "Brokskar boligområde",
+      "plantype": "detaljregulering",
+      "planstatus": "forslag",
+      "kommunenummer": "5501",
+      "kommune": "TROMSØ",
+      "planbestemmelseDato": "2020-03-12",
+      "ikrafttredelsesdato": null,
+      "lovgrunnlag": "plan- og bygningsloven",
+      "formaal": [
+        {
+          "kode": "1110",
+          "navn": "boligbebyggelse",
+          "underformaal": "frittliggende småhusbebyggelse"
+        }
+      ],
+      "hensynssoner": [
+        {
+          "kode": "H310",
+          "navn": "hensynssone ras- og skredfare",
+          "beskrivelse": "Farevurdering gjelder ved nye terrenginngrep og utvidelser."
+        }
+      ],
+      "bestemmelsesomraader": [],
+      "planbestemmelser": [
+        {
+          "bestemmelseId": "5501-2020005-B02",
+          "tema": "planstatus",
+          "tekst": "Planforslaget er ikke vedtatt og skal ikke brukes som eneste grunnlag for en bindende vurdering.",
+          "relevantFor": ["alle_tiltak"]
+        }
+      ],
+      "berorteEiendommer": [
+        {
+          "matrikkelId": "matr-geo-5501-66000-10",
+          "gnr": 49,
+          "bnr": 20,
+          "festenummer": 0,
+          "undernummer": 0,
+          "adresse": "Brokskarvegen 10"
+        }
+      ]
+    },
+    {
+      "planId": "1508-2011008",
+      "planNavn": "Inste Holen fritids- og boligområde",
+      "plantype": "detaljregulering",
+      "planstatus": "vedtatt",
+      "kommunenummer": "1508",
+      "kommune": "ÅLESUND",
+      "planbestemmelseDato": "2011-08-24",
+      "ikrafttredelsesdato": "2011-10-01",
+      "lovgrunnlag": "plan- og bygningsloven",
+      "formaal": [
+        {
+          "kode": "1120",
+          "navn": "fritidsbebyggelse"
+        }
+      ],
+      "hensynssoner": [],
+      "bestemmelsesomraader": [],
+      "planbestemmelser": [
+        {
+          "bestemmelseId": "1508-2011008-B07",
+          "tema": "vinduer",
+          "tekst": "Vinduer skal ha dempet fargebruk og tilpasses bebyggelsens karakter."
+        }
+      ],
+      "berorteEiendommer": [
+        {
+          "matrikkelId": "matr-geo-1508-18690-2",
+          "gnr": 32,
+          "bnr": 1,
+          "festenummer": 8,
+          "undernummer": 0,
+          "adresse": "Inste Holen 2"
+        }
+      ]
+    }
+  ],
+  "eiendommerUtenRegistrertPlan": [
+    {
+      "matrikkelId": "matr-geo-0301-10625-13A",
+      "merknad": "Eksempel på alternativt resultat dersom planoppslaget ikke finner treff. Brukes ikke sammen med planen over i samme kjøring."
+    }
+  ]
+}
