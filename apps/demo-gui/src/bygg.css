@@ -1,0 +1,175 @@
+.progress-nav {
+  margin: 20px 0;
+}
+.progress {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.progress-step {
+  flex: 1;
+  border-top: 4px solid var(--farge-kant);
+  padding-top: 8px;
+  color: var(--farge-tekst);
+  font-size: 14px;
+}
+.progress-step.active {
+  border-color: var(--farge-primar);
+  color: var(--farge-primar-mork);
+  font-weight: 700;
+}
+p,
+.bubble {
+  line-height: 1.5;
+}
+.top-links a,
+.top-links [aria-current="page"] {
+  color: var(--farge-primar-mork);
+  display: inline-block;
+  min-height: 44px;
+  padding: 10px 0;
+}
+
+input,
+select,
+textarea {
+  min-height: 44px;
+}
+.muted,
+.wallet-data dt {
+  color: var(--farge-tekst);
+}
+.assistant .bubble {
+  color: var(--farge-tekst);
+}
+.user .bubble {
+  background: var(--farge-primar-mork);
+}
+
+.switchUser {
+  color: var(--farge-primar-mork);
+}
+
+/* Paneler og QR */
+.qr-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.qr-code {
+  display: block;
+  width: min(300px, 100%);
+  aspect-ratio: 1;
+  margin: 20px auto;
+  align-self: center;
+  image-rendering: pixelated;
+  border: 12px solid var(--farge-flate);
+  box-shadow: var(--skygge);
+}
+
+/* Data-visning */
+.wallet-data {
+  border-left: 4px solid var(--farge-primar);
+  padding: 12px 16px;
+  background: var(--farge-flate-dempet);
+  margin: 18px 0;
+}
+.wallet-data dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 18px;
+  margin: 0;
+  text-align: left;
+}
+.wallet-data dt {
+  color: var(--farge-tekst);
+  font-weight: 600;
+}
+
+/* Layout */
+.wallet-panel,
+.chat-panel,
+.application-panel {
+  grid-column: 1 / -1;
+}
+
+.application-overview {
+  display: grid;
+  gap: var(--ds-size-6, 1.5rem);
+}
+.overview-section {
+  border-top: 1px solid var(--ds-color-border-subtle, var(--farge-kant));
+  padding-top: var(--ds-size-4, 1rem);
+}
+.overview-section h3 {
+  margin: 0 0 var(--ds-size-3, 0.75rem);
+}
+.overview-data {
+  display: grid;
+  grid-template-columns: minmax(10rem, auto) 1fr;
+  gap: var(--ds-size-2, 0.5rem) var(--ds-size-5, 1.25rem);
+  margin: 0;
+}
+.overview-data dt {
+  font-weight: 700;
+}
+.overview-data dd {
+  margin: 0;
+}
+.neighbor-list {
+  display: grid;
+  gap: var(--ds-size-2, 0.5rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.neighbor-list li {
+  border: 1px solid var(--ds-color-border-subtle, var(--farge-kant));
+  padding: var(--ds-size-3, 0.75rem);
+}
+/* Chat */
+.chat {
+  min-height: 360px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+.chat-composer {
+  align-items: end;
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.chat-composer textarea {
+  flex: 1 1 20rem;
+  min-width: 0;
+  padding: 8px;
+}
+
+/* UU: Skjult for seende, tilgjengelig for skjermleser */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 700px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .chat-composer {
+    display: block;
+  }
+  .chat-composer button {
+    margin-top: 8px;
+    width: 100%;
+  }
+}

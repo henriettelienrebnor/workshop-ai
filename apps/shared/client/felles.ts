@@ -656,7 +656,7 @@ function showLoggedInPerson(
     const bytt = document.createElement("a");
     bytt.className = "switchUser";
     bytt.href = "#";
-    bytt.textContent = "logg ut / bytt bruker";
+    bytt.textContent = "Logg ut / bytt bruker";
     bytt.style.cssText =
       "display:inline-block; margin-top:.35rem; font-size:.85rem;";
     bytt.onclick = (hendelse) => {

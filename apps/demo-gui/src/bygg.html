@@ -1,165 +1,84 @@
 <!doctype html>
-<html lang="nb">
+<html lang="nb" data-color-scheme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Trenger du byggesøknad?</title>
     <link rel="stylesheet" href="/assets/felles.css" />
-    <style>
-      .progress {
-        display: flex;
-        gap: 8px;
-        margin: 20px 0;
-      }
-      .progress-step {
-        flex: 1;
-        border-top: 4px solid #ccd6e0;
-        padding-top: 8px;
-        color: #5b6a7a;
-        font-size: 14px;
-      }
-      .progress-step.active {
-        border-color: #1459c7;
-        color: #153d80;
-        font-weight: 700;
-      }
-      .qr-panel {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-      }
-      .qr-code {
-        display: block;
-        width: min(300px, 100%);
-        aspect-ratio: 1;
-        margin: 20px auto;
-        align-self: center;
-        image-rendering: pixelated;
-        border: 12px solid #fff;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
-      }
-      .wallet-data {
-        border-left: 4px solid #38a6a0;
-        padding: 12px 16px;
-        background: #eef5f3;
-        margin: 18px 0;
-      }
-      .wallet-data dl {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 6px 18px;
-        margin: 0;
-        text-align: left;
-      }
-      .wallet-data dt {
-        color: #5b6a7a;
-      }
-      .wallet-panel,
-      .chat-panel {
-        grid-column: 1 / -1;
-      }
-      .chat {
-        min-height: 360px;
-        max-height: 520px;
-      }
-      .chat-composer {
-        display: flex;
-        gap: 8px;
-        align-items: end;
-      }
-      .chat-composer textarea {
-        min-height: 52px;
-        margin: 0;
-      }
-      .chat-composer button {
-        white-space: nowrap;
-      }
-      .muted {
-        color: #5b6a7a;
-      }
-      .visually-hidden {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-      }
-      @media (max-width: 700px) {
-        .grid {
-          grid-template-columns: 1fr;
-        }
-        .chat-composer {
-          display: block;
-        }
-        .chat-composer button {
-          margin-top: 8px;
-          width: 100%;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="/assets/bygg.css" />
+
+    <link
+      rel="stylesheet"
+      href="https://static.fiks.ks.no/googlefonts/googleapis/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="/assets/ds-base.css" />
+    <link rel="stylesheet" href="/assets/ds-ksdigital.css" />
   </head>
 
   <body>
     <main>
       <div class="top-links" id="toppmeny"></div>
 
-      <h1>Trenger du byggesøknad?</h1>
+      <select id="personvelger" hidden aria-hidden="true"></select>
 
-      <p>
+      <h1 class="ds-heading" data-size="xl">Trenger du byggesøknad?</h1>
+
+      <p class="ds-paragraph" data-variant="long">
         Få hjelp til å forstå hva som gjelder for prosjektet ditt. Vi starter
         med opplysninger fra Digital lommebok.
       </p>
 
-      <div class="progress" aria-label="Fremdrift">
-        <div id="progressScan" class="progress-step active">
-          1. Hent opplysninger
-        </div>
-
-        <div id="progressChat" class="progress-step">2. Få veiledning</div>
-
-        <div class="progress-step">3. Finn ut hva du må gjøre</div>
-      </div>
+      <nav class="progress-nav" aria-label="Fremdrift i prosessen">
+        <ol class="progress">
+          <li
+            id="progressScan"
+            class="progress-step active"
+            aria-current="step"
+          >
+            1. Hent opplysninger
+          </li>
+          <li id="progressChat" class="progress-step">2. Få veiledning</li>
+          <li id="byggesoknad" class="progress-step">3. Send nabovarsel</li>
+        </ol>
+      </nav>
 
       <div class="grid">
-        <select id="personvelger" hidden aria-hidden="true"></select>
-
         <section
           id="scanPanel"
-          class="card qr-panel"
+          class="ds-card card qr-panel"
           aria-labelledby="scanTitle"
         >
-          <h2 id="scanTitle">Skann QR-koden</h2>
+          <h2 class="ds-heading" data-size="md" id="scanTitle">
+            Skann QR-koden
+          </h2>
 
           <img
             id="qrCode"
             class="qr-code"
-            alt="QR-kode for Digital lommebok"
+            alt="QR-kode for å hente data fra Digital lommebok"
             src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADIAQAAAACFI5MzAAADVElEQVR4Xu3WOxKkKBgAYEjgCpjg1SCBK2DCI8ErYCJXkwSvoAkM3bO7Y08to+luNeH/dVk8/keD2lvg98A/6ytfea2v/KelACQ3ggvPjKfAgHkiZq+Li3NGQ81ElkfCZA1TOt15UGgFeirJudkqGIh4LOuwAgq4ZcblZ2L2M9a5aDGEcd4/z9MTgMSv9du9deS1B35uQpsNzvvPyJ0UIusS0wqYxgF+7KAvZtmUUDAjAGeL4OVrXWkbwJmZ5cxDwYHqX1/rSxFT0HJPXkyLn8r1RrtSszDOuRQDo1o+lKWI9nJEBjgX6N9wK227e7TTvKqp5vF4052UwWs4b9y5errdPpGCPV7SimTBmxZMPBI2LudpcUBj8kTOr9idtLQSU9a8ULNSoi9f60sZDqG0gHOdXXTpctK+1JSnPfMyZSWPcX4mfogroVPMAHohr/fWlULgstgpqCkucSnXrOpKzUoQBoTg0cLyUVl9iZuClhdTEGUw00dyEMFnD1fFEPm7Hu8kzUWwocDa8kpoZh5IMWeQyXmA6LAU/jN9b6QGYDI+fTui1QBcb6cvLXdtO6aGbgNU43fsRgoVlMKjpa2zVItrf+sL0GJcudejh3HV6onUAyANtAKMySDAxyt0JQxBK74UbAWevXzHbqRQnlrRH2YbC1Iym0diDq3lMcQ9TxvfnkjNfBvnlGpoU4DB9ZEsh4mBDLvbYPT0etKuFLlJO7glAzYE/tGR+sIIAGryQNZ5biX8it1Jy17P1LRviK9UsevE6EsYo8XHcHoq2h1dbvQPsrIxrTyloggh6JohXSlACW6l8wqZ0xLyROraarE1WJz1eMBw7aN98QQGQMY2aqEFanzHbqQQNCwp7ivD536wyzTrS92jN7udrIwto8JDeSWgF7wgJPge37E7icUclCoTAF52e325vrQ/JotVfJssHTK8ZnxXWl8xLlCKePW4nfj96zuBeSz4tK1/BaTAtYK70mzKbaK1guRzq0vzQArA54qG1pmnIA9xnZp9Mft8wCW0DRj312C6FSaGmNIGFMKHAONDmQ5YZMbtCdJ+7Uh/EBlbqS8bbnOgDc9HYtrYVAq2MYNafV07RV/av9vWjrKWK6VaXztSV/51feUrr/WV/5/8ADMakOJ8jaJCAAAAAElFTkSuQmCC"
           />
 
-          <button id="scanWallet" type="button">
+          <button class="ds-button" id="scanWallet" type="button">
             Jeg har skannet QR-koden
           </button>
 
-          <p id="scanStatus" class="muted" aria-live="polite">
+          <p id="scanStatus" class="ds-paragraph muted" aria-live="polite">
             Starter forespørsel mot Digital lommebok ...
           </p>
         </section>
 
         <section
           id="walletPanel"
-          class="card wallet-panel"
+          class="ds-card card wallet-panel"
           hidden
           aria-labelledby="walletTitle"
         >
-          <h2 id="walletTitle">Opplysninger fra Digital lommebok</h2>
+          <h2 class="ds-heading" data-size="md" id="walletTitle">
+            Opplysninger fra Digital lommebok
+          </h2>
 
-          <p>
+          <p class="ds-paragraph" data-variant="long">
             Dette er opplysningene vi bruker i veiledningen. Du kan stoppe her
             når som helst.
           </p>
@@ -174,17 +93,15 @@
               <dd id="walletPersonId"></dd>
             </dl>
           </div>
-
-          <button id="openChat">Start veiledning</button>
         </section>
 
         <section
           id="chatPanel"
-          class="card chat-panel"
+          class="ds-card card chat-panel"
           hidden
           aria-labelledby="chatTitle"
         >
-          <h2 id="chatTitle">Byggesøknad-veileder</h2>
+          <h2 class="ds-heading" id="chatTitle">Byggesøknad-veileder</h2>
 
           <p class="muted">
             Fortell hva du planlegger, så hjelper vi deg å finne ut om du må
@@ -193,18 +110,49 @@
 
           <div id="chat" class="chat" aria-live="polite"></div>
 
-          <form id="chatForm" class="chat-composer">
-            <label for="chatInput" class="visually-hidden"
-              >Skriv en melding</label
-            >
+          <form id="chatForm" class="chat-composer actions">
+            <label for="chatInput" class="visually-hidden">
+              Skriv en melding i chatten
+            </label>
             <textarea
+              class="ds-input"
               id="chatInput"
               rows="2"
               placeholder="For eksempel: Jeg vil bygge en terrasse på 20 m²."
             ></textarea>
-
-            <button type="submit">Send</button>
+            <button class="ds-button" type="submit">Send</button>
           </form>
+        </section>
+
+        <section
+          id="applicationPanel"
+          class="ds-card card application-panel"
+          hidden
+          aria-labelledby="applicationTitle"
+        >
+          <h2 class="ds-heading" id="applicationTitle">
+            Fyll ut byggesøknaden
+          </h2>
+          <p class="ds-paragraph">
+            Her ser du hvem som får nabovarsel og opplysningene som brukes
+            videre i byggesaken.
+          </p>
+
+          <div id="applicationOverview" class="application-overview"></div>
+          <div class="actions application-actions">
+            <button class="ds-button" id="sendNeighborNotice" type="button">
+              Send nabovarsel
+            </button>
+          </div>
+          <div
+            id="neighborNoticeStatus"
+            class="ds-alert"
+            data-color="success"
+            role="status"
+            hidden
+          >
+            <p class="ds-paragraph">Nabovarsel sendt.</p>
+          </div>
         </section>
       </div>
     </main>

@@ -77,6 +77,15 @@ const server = createServer(
       return;
     }
 
+    if (sti === "/assets/bygg.css") {
+      await sendFil(
+        response,
+        path.join(__dirname, "bygg.css"),
+        "text/css; charset=utf-8",
+      );
+      return;
+    }
+
     for (const [prefiks, katalog, tillatte] of [
       // /delt/ før /assets/: felles.ts er .ts og strippes, resten er statiske
       // filer som sendes uendret. Rekkefølgen betyr ingenting her siden
