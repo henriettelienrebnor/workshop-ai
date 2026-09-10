@@ -192,11 +192,11 @@ async function init(): Promise<void> {
   await startVerification();
 }
 
-scanButton.addEventListener("click", () => showWalletData());
+scanButton.addEventListener("click", () => void receiveWalletData());
 krevEl("openChat").addEventListener("click", () => {
   qrPanel.hidden = true;
   qrPanel.style.display = "none";
-  walletPanel.hidden = true;
+  walletPanel.hidden = false;
   chatPanel.hidden = false;
   progressScan.classList.remove("active");
   progressChat.classList.add("active");
