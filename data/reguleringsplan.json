@@ -367,6 +367,12 @@
           "bestemmelseId": "1508-2011008-B07",
           "tema": "vinduer",
           "tekst": "Vinduer skal ha dempet fargebruk og tilpasses bebyggelsens karakter."
+        },
+        {
+          "bestemmelseId": "0301-2022001-B09",
+          "tema": "vinduer",
+          "tekst": "Vinduer mot gate skal ha samme hovedinndeling og visuelle uttrykk som eksisterende vinduer.",
+          "relevantFor": ["vindusendring", "fasadeendring"]
         }
       ],
       "berorteEiendommer": [

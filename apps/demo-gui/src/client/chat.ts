@@ -89,6 +89,17 @@ function kildeTekst(dataKilder: string[] | undefined): string {
 /** POST /ai/tolk-svar. */
 type Tolkning = { intent?: string; confidence?: number; modell?: string; advarsel?: string };
 
+/** POST /ai/tolk-tiltaksomfang. */
+type Feltavklaring = { verdi: boolean | null; confidence: number };
+type Tiltaksavklaring = {
+  fasadeendring: Feltavklaring;
+  endringBaerekonstruksjon: Feltavklaring;
+  begrunnelse?: string;
+  oppfolgingssporsmaal?: string | null;
+  modell?: string;
+  advarsel?: string;
+};
+
 type Revisjonsrad = {
   handling: string;
   ressurs?: string;
@@ -120,6 +131,13 @@ let satser: unknown = null;
 let sisteSamtykke: Samtykke | null = null;
 let ventendeOppfolging: string[] = [];
 const samtale: Samtalelinje[] = [];
+
+// avklar-tiltak-steget i byggesoknad: samtalen som bygger opp Tiltaksavklaring,
+// og hvor mange runder vi har brukt før vi faller tilbake til et direkte spørsmål.
+const TILTAKSOMFANG_TERSKEL = 0.7;
+const TILTAKSOMFANG_MAKS_RUNDER = 10;
+let tiltaksomfangHistorikk: { role: string; message: string }[] = [];
+let tiltaksomfangRunder = 0;
 
 function summarizeResult(steg: ProsessSteg | null | undefined, result: Stegresultat | unknown[] | null | undefined): string {
   if (!result) {
@@ -601,6 +619,103 @@ async function interpretBrukersvar(
   }
 }
 
+/*
+ * avklar-tiltak i byggesoknad: bygger opp Tiltaksavklaring gjennom en samtale
+ * i stedet for ett enkelt svar. KI-en trekker ut de to feltene med en
+ * confidence hver - den avgjør ingenting selv, bare foreslår, og et senere
+ * SJEKK-steg (ikke bygget ennå) gjør selve avgjørelsen deterministisk.
+ */
+async function tolkTiltaksomfang(tekst: string): Promise<Tiltaksavklaring | null> {
+  try {
+    const grunnlag = (oekt?.resultater?.["hent-saksgrunnlag"] as { reguleringsplan?: unknown } | undefined)?.reguleringsplan ?? null;
+    const res = await fetch(`${aiBase}/ai/tolk-tiltaksomfang`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tekst,
+        history: tiltaksomfangHistorikk,
+        kontekst: { reguleringsplan: grunnlag },
+        sporingsId: oekt?.sporingsId
+      })
+    });
+    const data = (await res.json()) as Tiltaksavklaring & { feil?: string };
+    if (!res.ok) {
+      throw new Error(data.feil || `Feil ${res.status}`);
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function isBaerekonstruksjonVeiledningssporsmaal(text: string): boolean {
+  const lower = normalize(text);
+  const sporreord = ["hva", "hvilke", "hvordan", "betyr", "mener", "forklar", "si mer"];
+  const tema = ["bærekonstruksjon", "baerekonstruksjon", "bærende", "baerende", "bærevegg", "baerevegg", "konstruksjon"];
+  return sporreord.some((ord) => lower.includes(ord)) && tema.some((ord) => lower.includes(ord));
+}
+
+function baerekonstruksjonVeiledning(): string {
+  return [
+    "Med endring i bærekonstruksjon mener vi at arbeidet berører deler av bygget som holder huset oppe, for eksempel bærende vegg, bjelker eller andre konstruksjonsdeler rundt åpningen.",
+    "Å bytte et vindu i samme åpning er ofte ikke en slik endring. Det kan bli det hvis åpningen må gjøres større, flyttes, lages på nytt, eller hvis veggen rundt må forsterkes eller bygges om."
+  ].join(" ");
+}
+
+async function handleAvklarTiltak(steg: ProsessSteg, tekst: string): Promise<void> {
+  const veiledningssporsmaal = isBaerekonstruksjonVeiledningssporsmaal(tekst);
+  tiltaksomfangHistorikk.push({ role: "bruker", message: tekst });
+  const avklaring = await tolkTiltaksomfang(tekst);
+
+  if (!avklaring) {
+    addMsg("assistant", "Jeg fikk ikke tolket svaret akkurat nå. Kan du beskrive det på en annen måte?");
+    return;
+  }
+
+  const begge =
+    avklaring.fasadeendring.verdi !== null &&
+    avklaring.fasadeendring.confidence >= TILTAKSOMFANG_TERSKEL &&
+    avklaring.endringBaerekonstruksjon.verdi !== null &&
+    avklaring.endringBaerekonstruksjon.confidence >= TILTAKSOMFANG_TERSKEL;
+  const trengerOppfolging = Boolean(avklaring.oppfolgingssporsmaal);
+
+  if (begge && !trengerOppfolging) {
+    oekt = await req<Prosessoekt>(`/api/prosessoekter/${oekt!.oektsId}/svar`, {
+      method: "POST",
+      body: JSON.stringify({
+        stegId: steg.id,
+        svar: {
+          fasadeendring: avklaring.fasadeendring.verdi,
+          endringBaerekonstruksjon: avklaring.endringBaerekonstruksjon.verdi
+        }
+      })
+    });
+    tiltaksomfangHistorikk = [];
+    tiltaksomfangRunder = 0;
+    addMsg("assistant", veiledningssporsmaal
+      ? `${baerekonstruksjonVeiledning()}\n\nTakk, da har jeg det jeg trenger om vindusbyttet.`
+      : "Takk, da har jeg det jeg trenger om vindusbyttet.");
+    updateSessionInfo();
+    await goNext();
+    return;
+  }
+
+  tiltaksomfangRunder += 1;
+  const oppfolging = avklaring.oppfolgingssporsmaal
+    || "Kan du si litt mer om størrelse, form og plassering på vinduet, og om veggen rundt må endres?";
+  tiltaksomfangHistorikk.push({ role: "assistent", message: oppfolging });
+
+  if (tiltaksomfangRunder >= TILTAKSOMFANG_MAKS_RUNDER) {
+    addMsg(
+      "assistant",
+      `${veiledningssporsmaal ? `${baerekonstruksjonVeiledning()}\n\n` : ""}Jeg klarer ikke å avklare dette helt gjennom samtale ennå. Svar gjerne direkte med feltene under, eller skriv «svar:» foran et kort ja/nei-svar på hvert spørsmål: er dette en fasadeendring, og medfører det endring i bærekonstruksjonen?`
+    );
+    return;
+  }
+
+  addMsg("assistant", veiledningssporsmaal ? `${baerekonstruksjonVeiledning()}\n\n${oppfolging}` : oppfolging);
+}
+
 async function aiExplain(promptType: string, context: Record<string, unknown> = {}): Promise<string> {
   try {
     const res = await fetch(`${aiBase}/ai/${promptType}`, {
@@ -1016,6 +1131,10 @@ async function sendMessage(
     }
 
     if (steg.type === "QUESTION") {
+      if (steg.id === "avklar-tiltak") {
+        await handleAvklarTiltak(steg, reellTekst);
+        return;
+      }
       oekt = await req<Prosessoekt>(`/api/prosessoekter/${oekt.oektsId}/svar`, {
         method: "POST",
         body: JSON.stringify({ stegId: steg.id, svar: reellTekst })
@@ -1085,6 +1204,8 @@ async function startChat(): Promise<void> {
     stopForsendelsespolling();
     sisteSamtykke = null;
     ventendeOppfolging = [];
+    tiltaksomfangHistorikk = [];
+    tiltaksomfangRunder = 0;
     samtale.length = 0;
     oekt = await req<Prosessoekt>("/api/prosessoekter", {
       method: "POST",

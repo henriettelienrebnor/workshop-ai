@@ -216,6 +216,7 @@ function docsHtml(): string {
         <li><code>POST /ai/risikosjekk</code></li>
         <li><code>POST /ai/sporsmaal</code></li>
         <li><code>POST /ai/tolk-svar</code></li>
+        <li><code>POST /ai/tolk-tiltaksomfang</code></li>
         <li><code>POST /ai/velg-prosess</code></li>
         <li><code>POST /ai/velg-verktoy</code></li>
         <li><code>POST /ai/dommer</code> - LLM-dommer for <code>pnpm test:eval</code>. Revisjonslogges ikke.</li>
@@ -1375,6 +1376,292 @@ function parseJsonObject(tekst: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * Ett felt trukket ut fra fritekst, med modellens egen usikkerhet - samme
+ * selvrapporterte confidence-mønster som Intentsvar, bare ett felt om gangen
+ * i stedet for én samlet intent.
+ */
+type Feltavklaring = { verdi: boolean | null; confidence: number };
+
+/** Modellens uttrekk av byggesøknadens tiltaksomfang-avklaring. */
+type Tiltaksavklaring = {
+  fasadeendring: Feltavklaring;
+  endringBaerekonstruksjon: Feltavklaring;
+  begrunnelse: string;
+  oppfolgingssporsmaal: string | null;
+};
+
+function validateFeltavklaring(raa: unknown): Feltavklaring | null {
+  if (!raa || typeof raa !== "object") return null;
+  const data = raa as { verdi?: unknown; confidence?: unknown };
+  const verdi = typeof data.verdi === "boolean" ? data.verdi : null;
+  const confidence = Number(data.confidence);
+  return {
+    verdi,
+    confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0
+  };
+}
+
+function validateTiltaksavklaring(raa: unknown): Tiltaksavklaring | null {
+  if (!raa || typeof raa !== "object") return null;
+  const data = raa as Record<string, unknown>;
+  const fasadeendring = validateFeltavklaring(data.fasadeendring);
+  const endringBaerekonstruksjon = validateFeltavklaring(data.endringBaerekonstruksjon);
+  if (!fasadeendring || !endringBaerekonstruksjon) return null;
+  return {
+    fasadeendring,
+    endringBaerekonstruksjon,
+    begrunnelse: typeof data.begrunnelse === "string" ? data.begrunnelse : "",
+    oppfolgingssporsmaal: typeof data.oppfolgingssporsmaal === "string" ? data.oppfolgingssporsmaal : null
+  };
+}
+
+type FasadeKjennetegn = {
+  id: string;
+  label: string;
+  endret: string[];
+  uendret: string[];
+  planord: string[];
+};
+
+const fasadeKjennetegn: FasadeKjennetegn[] = [
+  {
+    id: "storrelse",
+    label: "størrelse",
+    endret: ["større", "storre", "mindre", "annen størrelse", "annen storrelse", "ny størrelse", "ny storrelse"],
+    uendret: ["samme størrelse", "samme storrelse", "lik størrelse", "lik storrelse", "uendret størrelse", "uendret storrelse"],
+    planord: ["størrelse", "storrelse", "større", "mindre"]
+  },
+  {
+    id: "form",
+    label: "form",
+    endret: ["annen form", "ny form", "endret form"],
+    uendret: ["samme form", "lik form", "uendret form"],
+    planord: ["form", "hovedinndeling", "inndeling"]
+  },
+  {
+    id: "plassering",
+    label: "plassering",
+    endret: ["annen plassering", "ny plassering", "flytte vinduet", "flyttes", "flytter vinduet"],
+    uendret: ["samme plassering", "samme plass", "lik plassering", "uendret plassering"],
+    planord: ["plassering", "plass"]
+  },
+  {
+    id: "stil",
+    label: "stil og uttrykk",
+    endret: ["annen stil", "ny stil", "annen hovedinndeling", "annet uttrykk", "annet visuelt uttrykk"],
+    uendret: ["samme stil", "samme hovedinndeling", "samme uttrykk", "lik stil", "likt uttrykk"],
+    planord: ["stil", "uttrykk", "visuelle", "hovedinndeling"]
+  },
+  {
+    id: "farge",
+    label: "farge",
+    endret: ["annen farge", "ny farge", "bytte farge", "endre farge", "male vindu", "malt vindu"],
+    uendret: ["samme farge", "lik farge", "uendret farge", "ikke endre farge", "ingen fargeendring"],
+    planord: ["farge", "fargebruk"]
+  },
+  {
+    id: "materialbruk",
+    label: "materialbruk",
+    endret: ["annet materiale", "annen materialbruk", "nye materialer", "nytt materiale"],
+    uendret: ["samme materiale", "samme materialbruk", "likt materiale", "uendret materiale"],
+    planord: ["materialbruk", "materiale", "materialer"]
+  }
+];
+
+function treff(tekst: string, uttrykk: string[]): boolean {
+  const ord = tekst.split(" ").filter(Boolean);
+  return uttrykk.some((monster) => containsPhrase(ord, normalizeText(monster)));
+}
+
+function tiltaksomfangTekst(body: AiKropp): string {
+  const historikk = Array.isArray(body?.history) ? body.history : [];
+  return normalizeText([
+    ...historikk.map((tur) => tur?.message || ""),
+    body?.tekst || ""
+  ].join(" "));
+}
+
+function erVeiledningssporsmaalOmBaering(tekst: string): boolean {
+  const sporreord = ["hva", "hvilke", "hvordan", "betyr", "mener", "forklar", "si mer"];
+  const tema = ["bærekonstruksjon", "baerekonstruksjon", "bærende", "baerende", "bærevegg", "baerevegg", "konstruksjon"];
+  return sporreord.some((ord) => treff(tekst, [ord])) && tema.some((ord) => treff(tekst, [ord]));
+}
+
+function relevanteKjennetegnFraPlan(body: AiKropp): FasadeKjennetegn[] {
+  const planTekst = normalizeText(JSON.stringify(body?.kontekst?.reguleringsplan || {}));
+  const fraPlan = fasadeKjennetegn.filter((kjennetegn) => treff(planTekst, kjennetegn.planord));
+  return fraPlan.length ? fraPlan : fasadeKjennetegn;
+}
+
+function vurderFasadeendring(body: AiKropp): { felt: Feltavklaring; mangler: string[]; kilde: string } {
+  const tekst = tiltaksomfangTekst(body);
+  const relevante = relevanteKjennetegnFraPlan(body);
+  const endret = relevante.find((kjennetegn) => treff(tekst, kjennetegn.endret) && !treff(tekst, kjennetegn.uendret));
+  if (endret) {
+    return { felt: { verdi: true, confidence: 0.9 }, mangler: [], kilde: `Bruker oppga endring i ${endret.label}.` };
+  }
+
+  const mangler = relevante
+    .filter((kjennetegn) => !treff(tekst, kjennetegn.uendret))
+    .map((kjennetegn) => kjennetegn.label);
+
+  if (mangler.length === 0) {
+    return { felt: { verdi: false, confidence: 0.85 }, mangler, kilde: "Bruker har dekket planens relevante fasadekjennetegn." };
+  }
+
+  return { felt: { verdi: null, confidence: 0.35 }, mangler, kilde: "Bruker har bare dekket deler av fasadeavklaringen." };
+}
+
+function vurderBaerekonstruksjon(body: AiKropp): Feltavklaring {
+  const tekst = tiltaksomfangTekst(body);
+  if (erVeiledningssporsmaalOmBaering(normalizeText(body?.tekst || ""))) {
+    return { verdi: null, confidence: 0.2 };
+  }
+
+  const avkreftet = treff(tekst, [
+    "ikke bærende",
+    "ikke baerende",
+    "ikke bærekonstruksjon",
+    "ikke baerekonstruksjon",
+    "ingen endring i bærekonstruksjon",
+    "ingen endring i baerekonstruksjon",
+    "ikke endre bærevegg",
+    "ikke endre baerevegg",
+    "ingen bærende vegg",
+    "ingen baerende vegg",
+    "uten å endre veggen"
+  ]);
+  if (avkreftet) return { verdi: false, confidence: 0.9 };
+
+  const bekreftet = treff(tekst, [
+    "bærende vegg",
+    "baerende vegg",
+    "bærevegg",
+    "baerevegg",
+    "bærekonstruksjon",
+    "baerekonstruksjon",
+    "endre vegg",
+    "større hull",
+    "storre hull",
+    "nytt hull"
+  ]);
+  if (bekreftet) return { verdi: true, confidence: 0.9 };
+
+  return { verdi: null, confidence: 0.3 };
+}
+
+function planstyrteOppfolgingsdeler(body: AiKropp): string[] {
+  const tekst = tiltaksomfangTekst(body);
+  const planTekst = normalizeText(JSON.stringify(body?.kontekst?.reguleringsplan || {}));
+  const deler: string[] = [];
+
+  if (treff(tekst, ["annen farge", "ny farge", "bytte farge", "endre farge"]) && treff(planTekst, ["dempet fargebruk"])) {
+    deler.push("hvilken farge vinduet skal få, siden planen sier at vinduer skal ha dempet fargebruk og tilpasses bebyggelsens karakter");
+  }
+
+  if (treff(planTekst, ["vinduer mot gate"]) && !treff(tekst, ["mot gate", "ikke mot gate", "mot vei", "mot vegen", "mot veien", "mot hage", "mot bakgård", "mot bakgard"])) {
+    deler.push("om vinduet vender mot gate, fordi planen sier at vinduer mot gate skal følge eksisterende vinduers hovedinndeling og visuelle uttrykk");
+  }
+
+  return deler;
+}
+
+function byggTiltaksomfangOppfolging(fasade: { mangler: string[] }, baering: Feltavklaring, body: AiKropp): string {
+  const planTekst = normalizeText(JSON.stringify(body?.kontekst?.reguleringsplan || {}));
+  const vernet = ["h570", "bevaring", "kulturmiljø", "kulturmiljo"].some((ord) => planTekst.includes(ord));
+  const deler = [];
+  deler.push(...planstyrteOppfolgingsdeler(body));
+  if (fasade.mangler.length) {
+    deler.push(`om vinduet får samme ${fasade.mangler.join(", ")} som i dag`);
+  }
+  if (baering.verdi === null) {
+    deler.push("om arbeidet krever endring i bærende vegg eller konstruksjon");
+  }
+  const intro = vernet
+    ? "Planen har bevaringshensyn, så jeg må være litt presis:"
+    : "Jeg må avklare litt mer:";
+  return `${intro} Kan du si ${deler.join(" og ")}?`;
+}
+
+function medDeterministiskTiltaksomfangSjekk(svar: Tiltaksavklaring, body: AiKropp): Tiltaksavklaring {
+  const fasade = vurderFasadeendring(body);
+  const baering = vurderBaerekonstruksjon(body);
+  const neste: Tiltaksavklaring = {
+    ...svar,
+    fasadeendring: fasade.felt,
+    endringBaerekonstruksjon: baering,
+    begrunnelse: [svar.begrunnelse, fasade.kilde].filter(Boolean).join(" ")
+  };
+
+  if (planstyrteOppfolgingsdeler(body).length || neste.fasadeendring.verdi === null || neste.endringBaerekonstruksjon.verdi === null) {
+    neste.oppfolgingssporsmaal = byggTiltaksomfangOppfolging(fasade, baering, body);
+  }
+  return neste;
+}
+
+function buildTiltaksomfangPrompt(body: AiKropp): string {
+  const historikk = Array.isArray(body?.history) ? body.history : [];
+  const historikkTekst = historikk
+    .map((tur) => `${tur?.role === "bruker" ? "Bruker" : "Assistent"}: ${tur?.message ?? ""}`)
+    .join("\n");
+  return [
+    "Du hjelper en innbygger med å avklare et vindusbytte i en byggesøknad, gjennom en kort samtale.",
+    "Svar kun med gyldig JSON og ingen annen tekst. Skjema:",
+    '{"fasadeendring":{"verdi":true|false|null,"confidence":0.0},"endringBaerekonstruksjon":{"verdi":true|false|null,"confidence":0.0},"begrunnelse":"kort tekst","oppfolgingssporsmaal":"spørsmål til bruker, eller null"}',
+    "fasadeendring er sann hvis det nye vinduet får en annen størrelse, form, plassering, stil, farge eller materialbruk enn det som byttes ut. En fargeendring alene er nok til å telle som fasadeendring - den trenger ikke komme sammen med en endring i størrelse, form eller plassering.",
+    "fasadeendring har seks kjennetegn: størrelse, form, plassering, stil, farge og materialbruk. Bruker kan bekrefte at ett av dem er uendret uten å ha sagt noe om de andre - sett fasadeendring.verdi=false med høy confidence først når bruker har uttalt seg om alle seks, eller sagt noe som tydelig dekker alle (for eksempel «helt likt i alle henseender» eller «ingen andre endringer»). Er bare ett eller noen kjennetegn nevnt, hold confidence lav og spør om resten - ett av dem kan fortsatt vise seg å endre seg.",
+    "endringBaerekonstruksjon er sann hvis installasjonen krever endring i bærende vegg eller konstruksjon, for eksempel et større vindushull eller et nytt hull. Dette er et eget spørsmål bruker må ha uttalt seg om direkte - at plassering, størrelse, form, stil eller farge er uendret sier ingenting om bærekonstruksjonen, og skal ikke brukes til å utlede en verdi eller høy confidence her.",
+    "Les hele samtalehistorikken under før du svarer. Har bruker allerede svart tydelig på et spørsmål - selv med andre ord enn sist - skal du bruke det svaret, ikke stille det samme spørsmålet på nytt. Gjentar du et spørsmål bruker nettopp svarte på, er det en feil.",
+    "Sett verdi til null og confidence lavt (under 0.5) bare når svaret fortsatt mangler etter å ha lest hele historikken, og fyll da ut oppfolgingssporsmaal med ett konkret spørsmål om nettopp det som mangler - aldri et spørsmål du allerede har stilt.",
+    "Sett confidence over 0.7 når bruker har vært eksplisitt på akkurat det feltet, i denne meldingen eller tidligere i samtalen.",
+    "Sett oppfolgingssporsmaal til null når begge feltene har fått en verdi.",
+    "",
+    `Grunnlag fra reguleringsplanen for eiendommen: ${JSON.stringify(body?.kontekst || {})}`,
+    historikkTekst ? `Tidligere i samtalen:\n${historikkTekst}` : "",
+    `Siste melding fra bruker: ${JSON.stringify(body?.tekst || "")}`
+  ].filter(Boolean).join("\n");
+}
+
+const TILTAKSOMFANG_FALLBACK: Tiltaksavklaring = {
+  fasadeendring: { verdi: null, confidence: 0 },
+  endringBaerekonstruksjon: { verdi: null, confidence: 0 },
+  begrunnelse: "Ingen modell tilgjengelig til å tolke svaret.",
+  oppfolgingssporsmaal:
+    "Kan du beskrive om det nye vinduet får samme størrelse og plassering som det gamle, og om veggen rundt må endres?"
+};
+
+async function getTiltaksavklaringFromModel(body: AiKropp) {
+  const { tekst, modell } = await callModel(buildTiltaksomfangPrompt(body), {
+    temperature: 0,
+    systemMessage: SYSTEM_JSON,
+    task: "tolk-tiltaksomfang",
+    sporingsId: body?.sporingsId
+  });
+  const parsed = validateTiltaksavklaring(parseJsonObject(tekst));
+  if (!parsed) {
+    throw new Error(`Kunne ikke tolke JSON-svar fra ${modell}`);
+  }
+  return { ...medDeterministiskTiltaksomfangSjekk(parsed, body), modell };
+}
+
+async function tolkTiltaksomfangMedAi(body: AiKropp) {
+  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "bedrock") {
+    return { ...medDeterministiskTiltaksomfangSjekk(TILTAKSOMFANG_FALLBACK, body), syntetisk: true, modell: "mock-ai-gateway" };
+  }
+
+  try {
+    return { ...(await getTiltaksavklaringFromModel(body)), syntetisk: true };
+  } catch (error) {
+    return {
+      ...medDeterministiskTiltaksomfangSjekk(TILTAKSOMFANG_FALLBACK, body),
+      syntetisk: true,
+      modell: `${aiProvider}-fallback`,
+      advarsel: `LLM-tolkning feilet: ${feilmelding(error)}`
+    };
+  }
+}
+
 /** Modellens ja/nei-tolkning etter validering. */
 type Intentsvar = { intent: string; confidence: number; begrunnelse?: string };
 
@@ -2193,6 +2480,23 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
         sporingsId: body.sporingsId || newId("flyt"),
         handling: "KI_TOLKNING",
         ressurs: "tolk-svar",
+        aktor: { type: "system", id: "ai-gateway" }
+      });
+      jsonResponse(response, 200, svar);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/ai/tolk-tiltaksomfang") {
+      const body = await readRequestBody(request) as AiKropp;
+      const svar = await tolkTiltaksomfangMedAi(body);
+      console.log(
+        `tolk-tiltaksomfang: fasadeendring=${svar.fasadeendring.verdi} (confidence ${svar.fasadeendring.confidence}), ` +
+          `endringBaerekonstruksjon=${svar.endringBaerekonstruksjon.verdi} (confidence ${svar.endringBaerekonstruksjon.confidence})`
+      );
+      await addRevisjon({
+        sporingsId: body.sporingsId || newId("flyt"),
+        handling: "KI_TOLKNING",
+        ressurs: "tolk-tiltaksomfang",
         aktor: { type: "system", id: "ai-gateway" }
       });
       jsonResponse(response, 200, svar);
