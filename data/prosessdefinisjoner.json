@@ -583,10 +583,10 @@
       "syntetisk": true
     },
     {
-      "id": "eudi-eiendomsbevis-verifisering",
-      "navn": "Verifisering av eiendomsbevis og PID fra lommebok",
-      "beskrivelse": "Henter eiendomsbevis og person-ID (PID) fra innbyggerens EUDI-lommebok via verifier-tjenesten i eIDAS2-sandkassen.",
-      "versjon": "0.1.0",
+      "id": "byggesoknad",
+      "navn": "Byggesøknad",
+      "beskrivelse": "Søknad om tillatelse til tiltak. Eiendomsbevis og person-ID hentes fra innbyggerens EUDI-lommebok via verifier-tjenesten i eIDAS2-sandkassen; resten av søknaden bygges ut underveis.",
+      "versjon": "0.2.0",
       "redigering": {
         "status": "publisert",
         "eier": "Plan og bygg"
@@ -601,8 +601,8 @@
         {
           "id": "intro",
           "type": "INFO",
-          "tittel": "Del bevis fra lommeboken din",
-          "tekst": "Du skal dele eiendomsbeviset ditt og person-ID-en din fra EUDI-lommeboken. Du får en QR-kode du skanner med lommeboken.",
+          "tittel": "Søk om tillatelse til tiltak",
+          "tekst": "Vi hjelper deg gjennom byggesøknaden. Først henter vi eiendomsbeviset og person-ID-en din fra EUDI-lommeboken, så du slipper å dokumentere hvem du er og hva du eier.",
           "forfatterhjelp": {
             "hensikt": "Forklar at innbyggeren selv godkjenner delingen i lommeboken.",
             "skrivetips": "Nevn hvilke opplysninger som blir delt før QR-koden vises."
@@ -751,14 +751,170 @@
           }
         },
         {
+          "id": "bekreft-eiendom",
+          "type": "INFO",
+          "tittel": "Eiendommen søknaden gjelder",
+          "tekst": "Vi bruker eiendommen fra eiendomsbeviset du delte. Gjelder søknaden en annen eiendom, må du starte på nytt og dele beviset for den.",
+          "forfatterhjelp": {
+            "hensikt": "PLACEHOLDER. Skal vise eiendomsadressen fra hent-resultat, ikke bare si at den finnes.",
+            "skrivetips": "Adressen ligger under credentials[eiendomsbevis-id][0], og hentes fram på samme måte som QR-koden: {resultat.hent-resultat.<felt>}."
+          }
+        },
+        {
+          "id": "tiltakstype",
+          "type": "QUESTION",
+          "tittel": "Hva skal du bygge?",
+          "tekst": "Velg hva søknaden gjelder.",
+          "felter": [
+            {
+              "id": "tiltak",
+              "label": "Type tiltak",
+              "type": "valg",
+              "obligatorisk": true,
+              "alternativer": [
+                "Tilbygg",
+                "Garasje eller uthus",
+                "Bruksendring",
+                "Riving",
+                "Annet"
+              ]
+            }
+          ],
+          "forfatterhjelp": {
+            "hensikt": "Tiltakstypen avgjør resten: hvilke vedlegg som kreves, om tiltaket er søknadspliktig, og om det trengs ansvarlig søker.",
+            "skrivetips": "Utvid listen når flere tiltakstyper skal støttes."
+          }
+        },
+        {
+          "id": "beskriv-tiltak",
+          "type": "QUESTION",
+          "tittel": "Beskriv tiltaket",
+          "tekst": "Fortell kort hva du skal gjøre, hvor stort det blir og når du planlegger å starte.",
+          "felter": [
+            {
+              "id": "beskrivelse",
+              "label": "Beskrivelse av tiltaket",
+              "type": "tekst",
+              "obligatorisk": true,
+              "placeholder": "For eksempel: tilbygg på 15 kvadratmeter på baksiden av huset"
+            },
+            {
+              "id": "bruksareal",
+              "label": "Bruksareal i kvadratmeter",
+              "type": "tekst",
+              "obligatorisk": true,
+              "placeholder": "15"
+            },
+            {
+              "id": "planlagtOppstart",
+              "label": "Planlagt oppstart",
+              "type": "tekst",
+              "placeholder": "For eksempel: mars 2027"
+            }
+          ],
+          "forfatterhjelp": {
+            "hensikt": "PLACEHOLDER. Feltene er ikke validert ennå - bruksareal bør bli et tall, og oppstart en dato.",
+            "skrivetips": "Legg på validering i tools-api når feltene skal brukes til en vurdering."
+          }
+        },
+        {
+          "id": "naboliste",
+          "type": "INFO",
+          "tittel": "Naboer som skal varsles",
+          "tekst": "Naboer og gjenboere skal varsles før søknaden sendes inn. Denne listen hentes fra matrikkelen.",
+          "forfatterhjelp": {
+            "hensikt": "PLACEHOLDER. Skal bli et DATA_FETCH mot matrikkel-mock som slår opp naboeiendommene.",
+            "skrivetips": "Se ressurskatalogen i apps/sandbox-backend/src/ressurser.ts for hvordan et nytt oppslag legges til."
+          }
+        },
+        {
+          "id": "nabovarsel",
+          "type": "QUESTION",
+          "tittel": "Har du varslet naboene?",
+          "felter": [
+            {
+              "id": "varslet",
+              "label": "Naboene er varslet",
+              "type": "ja-nei",
+              "obligatorisk": true
+            },
+            {
+              "id": "merknader",
+              "label": "Kom det merknader fra naboene?",
+              "type": "tekst",
+              "placeholder": "Skriv «ingen» hvis det ikke kom merknader"
+            }
+          ],
+          "forfatterhjelp": {
+            "hensikt": "PLACEHOLDER. Nabovarsel er bekreftet av søkeren selv her - ingen kontroll mot naboliste eller frist.",
+            "skrivetips": "Nabovarselet har en frist på to uker. Den kan sjekkes når nabolisten faktisk hentes."
+          }
+        },
+        {
+          "id": "ansvarlig-soker",
+          "type": "QUESTION",
+          "tittel": "Hvem er ansvarlig for søknaden?",
+          "tekst": "Mindre tiltak kan du søke om selv. Større tiltak krever et ansvarlig foretak.",
+          "felter": [
+            {
+              "id": "ansvar",
+              "label": "Ansvarlig søker",
+              "type": "valg",
+              "obligatorisk": true,
+              "alternativer": [
+                "Jeg søker selv",
+                "Et foretak søker på mine vegne"
+              ]
+            },
+            {
+              "id": "organisasjonsnummer",
+              "label": "Organisasjonsnummer til foretaket",
+              "type": "tekst",
+              "placeholder": "Fylles ut hvis et foretak søker"
+            }
+          ],
+          "forfatterhjelp": {
+            "hensikt": "PLACEHOLDER. Organisasjonsnummeret slås ikke opp ennå.",
+            "skrivetips": "tools-api har brreg-oppslag som kan bekrefte at foretaket finnes og er aktivt."
+          }
+        },
+        {
+          "id": "vedlegg",
+          "type": "QUESTION",
+          "tittel": "Vedlegg til søknaden",
+          "tekst": "Beskriv hvilke tegninger og kart du har klart. Opplasting kommer senere.",
+          "felter": [
+            {
+              "id": "vedleggsliste",
+              "label": "Hvilke vedlegg har du?",
+              "type": "tekst",
+              "placeholder": "For eksempel: situasjonsplan, plantegning, fasadetegning"
+            }
+          ],
+          "forfatterhjelp": {
+            "hensikt": "PLACEHOLDER. Prosessmotoren har ingen filopplasting - dette er tekst inntil videre.",
+            "skrivetips": "Hvilke vedlegg som kreves følger av tiltakstypen. Legg koblingen inn når SJEKK-steget under bygges."
+          }
+        },
+        {
+          "id": "sjekk-soknadsplikt",
+          "type": "INFO",
+          "tittel": "Er tiltaket søknadspliktig?",
+          "tekst": "Noen mindre tiltak er unntatt søknadsplikt. Vurderingen av dette tiltaket kommer her.",
+          "forfatterhjelp": {
+            "hensikt": "PLACEHOLDER. Skal bli et SJEKK-steg med en deterministisk regel, slik SJEKK-stegene i de andre prosessene er.",
+            "skrivetips": "Regelen hører hjemme i data/satser.json og apps/sandbox-backend/src/regler.ts. KI forklarer utfallet, men avgjør det ikke."
+          }
+        },
+        {
           "id": "oppsummering",
           "type": "SUMMARY",
-          "tittel": "Oppsummering av delte opplysninger"
+          "tittel": "Oppsummering av søknaden"
         },
         {
           "id": "send-inn",
           "type": "SUBMIT",
-          "tittel": "Bekreft og send inn"
+          "tittel": "Send byggesøknaden"
         }
       ],
       "syntetisk": true
