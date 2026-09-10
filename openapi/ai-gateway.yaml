@@ -627,6 +627,16 @@ components:
           $ref: "#/components/schemas/Feltavklaring"
         endringBaerekonstruksjon:
           $ref: "#/components/schemas/Feltavklaring"
+        tiltak:
+          $ref: "#/components/schemas/Vindustiltak"
+        kravvurdering:
+          type: array
+          items:
+            $ref: "#/components/schemas/Kravvurdering"
+        mangler:
+          type: array
+          items:
+            type: string
         begrunnelse:
           type: string
         oppfolgingssporsmaal:
@@ -637,6 +647,61 @@ components:
         syntetisk:
           type: boolean
         advarsel:
+          type: string
+    Vindustiltak:
+      type: object
+      properties:
+        type:
+          type: string
+          example: vindusutskifting
+        plassering:
+          type: object
+          properties:
+            motGate:
+              type: boolean
+              nullable: true
+        visuelt:
+          type: object
+          properties:
+            storrelseEndres:
+              type: boolean
+              nullable: true
+            plasseringEndres:
+              type: boolean
+              nullable: true
+            hovedinndelingEndres:
+              type: boolean
+              nullable: true
+            fargeEndres:
+              type: boolean
+              nullable: true
+            nyFarge:
+              type: string
+              nullable: true
+            materialeEndres:
+              type: boolean
+              nullable: true
+        konstruksjon:
+          type: object
+          properties:
+            baerendeKonstruksjonBerort:
+              type: boolean
+              nullable: true
+    Kravvurdering:
+      type: object
+      properties:
+        bestemmelseId:
+          type: string
+        kravId:
+          type: string
+        status:
+          type: string
+          enum: [oppfylt, mangler_fakta]
+        mangler:
+          type: array
+          items:
+            type: string
+        veiledning:
           type: string
     VelgVerktoyRequest:
       type: object

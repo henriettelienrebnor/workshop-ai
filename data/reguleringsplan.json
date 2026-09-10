@@ -41,13 +41,38 @@
           "bestemmelseId": "0301-2022001-B08",
           "tema": "fasade",
           "tekst": "Endring av fasade mot offentlig gate skal tilpasses eksisterende bygning og avklares med kommunen.",
-          "relevantFor": ["fasadeendring", "vindusendring"]
+          "relevantFor": ["fasadeendring", "vindusendring"],
+          "krav": [
+            {
+              "kravId": "avklar-mot-gate",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.plassering.motGate"],
+              "veiledning": "Vender vinduet mot offentlig gate? Planen sier at fasadeendringer mot gate skal tilpasses eksisterende bygning og avklares med kommunen."
+            }
+          ]
         },
         {
           "bestemmelseId": "0301-2022001-B09",
           "tema": "vinduer",
           "tekst": "Vinduer mot gate skal ha samme hovedinndeling og visuelle uttrykk som eksisterende vinduer.",
-          "relevantFor": ["vindusendring", "fasadeendring"]
+          "relevantFor": ["vindusendring", "fasadeendring"],
+          "krav": [
+            {
+              "kravId": "avklar-mot-gate",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.plassering.motGate"],
+              "veiledning": "Vender vinduet mot gate? Hvis ja, sier planen at vinduet skal ha samme hovedinndeling og visuelle uttrykk som eksisterende vinduer."
+            },
+            {
+              "kravId": "mot-gate-samme-uttrykk",
+              "gjelder": "tiltak.plassering.motGate",
+              "naar": true,
+              "paakrevdeFelter": ["tiltak.visuelt.hovedinndelingEndres"],
+              "veiledning": "Får vinduet samme hovedinndeling og visuelle uttrykk som de eksisterende vinduene mot gate?"
+            }
+          ]
         }
       ],
       "berorteEiendommer": [
@@ -85,13 +110,38 @@
           "bestemmelseId": "4601-2019007-B04",
           "tema": "vinduer",
           "tekst": "Utskifting av vinduer er tillatt når størrelse, plassering og hovedinndeling ikke endres.",
-          "relevantFor": ["vindusendring"]
+          "relevantFor": ["vindusendring"],
+          "krav": [
+            {
+              "kravId": "avklar-tilsvarende-vindu",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.visuelt.storrelseEndres", "tiltak.visuelt.plasseringEndres", "tiltak.visuelt.hovedinndelingEndres"],
+              "veiledning": "Planen tillater vindusutskifting når størrelse, plassering og hovedinndeling ikke endres. Kan du si om disse tre blir som i dag?"
+            }
+          ]
         },
         {
           "bestemmelseId": "4601-2019007-B05",
           "tema": "farge_og_materialbruk",
           "tekst": "Farge- og materialbruk på fasader skal ikke gi vesentlig endret karakter på boligområdet.",
-          "relevantFor": ["fasadeendring", "vindusendring"]
+          "relevantFor": ["fasadeendring", "vindusendring"],
+          "krav": [
+            {
+              "kravId": "avklar-farge-ved-fargeendring",
+              "gjelder": "tiltak.visuelt.fargeEndres",
+              "naar": true,
+              "paakrevdeFelter": ["tiltak.visuelt.nyFarge"],
+              "veiledning": "Hvilken farge skal vinduet få? Planen sier at farge- og materialbruk ikke skal gi vesentlig endret karakter på boligområdet."
+            },
+            {
+              "kravId": "avklar-materiale-ved-vindusendring",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.visuelt.materialeEndres"],
+              "veiledning": "Blir materialbruken på vinduet den samme som i dag?"
+            }
+          ]
         }
       ],
       "berorteEiendommer": [
@@ -141,13 +191,31 @@
           "bestemmelseId": "1103-2016004-B12",
           "tema": "bevaring",
           "tekst": "På bevaringsverdige bygninger skal tiltak på fasade og vinduer utføres med særlig hensyn til bygningens kulturhistoriske verdi.",
-          "relevantFor": ["fasadeendring", "vindusendring"]
+          "relevantFor": ["fasadeendring", "vindusendring"],
+          "krav": [
+            {
+              "kravId": "avklar-visuelt-uttrykk-bevaring",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.visuelt.hovedinndelingEndres", "tiltak.visuelt.fargeEndres", "tiltak.visuelt.materialeEndres"],
+              "veiledning": "Planen har bevaringshensyn. Beholder vinduet samme hovedinndeling, farge og materialbruk som i dag?"
+            }
+          ]
         },
         {
           "bestemmelseId": "1103-2016004-B13",
           "tema": "søknadspliktige_tiltak",
           "tekst": "Nye eller større vindusåpninger mot gate skal forelegges kommunen før gjennomføring.",
-          "relevantFor": ["nytt_vindu", "storrelsesendring", "fasadeendring"]
+          "relevantFor": ["nytt_vindu", "storrelsesendring", "fasadeendring"],
+          "krav": [
+            {
+              "kravId": "avklar-mot-gate-ved-storrelsesendring",
+              "gjelder": "tiltak.visuelt.storrelseEndres",
+              "naar": true,
+              "paakrevdeFelter": ["tiltak.plassering.motGate"],
+              "veiledning": "Vender vinduet mot gate? Planen sier at nye eller større vindusåpninger mot gate skal forelegges kommunen før gjennomføring."
+            }
+          ]
         }
       ],
       "berorteEiendommer": [
@@ -185,7 +253,16 @@
           "bestemmelseId": "1108-2021003-B06",
           "tema": "fasade",
           "tekst": "Fasadeendringer skal følge godkjent hovedutforming for boligtypen.",
-          "relevantFor": ["fasadeendring"]
+          "relevantFor": ["fasadeendring"],
+          "krav": [
+            {
+              "kravId": "avklar-hovedutforming",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.visuelt.hovedinndelingEndres", "tiltak.visuelt.fargeEndres", "tiltak.visuelt.materialeEndres"],
+              "veiledning": "Planen sier at fasadeendringer skal følge godkjent hovedutforming for boligtypen. Blir uttrykk, farge og materialbruk som i dag?"
+            }
+          ]
         }
       ],
       "berorteEiendommer": [
@@ -232,13 +309,31 @@
         {
           "bestemmelseId": "1804-2013002-B10",
           "tema": "fasade",
-          "tekst": "Fasader mot sjø og offentlig rom skal ha en helhetlig utforming."
+          "tekst": "Fasader mot sjø og offentlig rom skal ha en helhetlig utforming.",
+          "krav": [
+            {
+              "kravId": "avklar-offentlig-rom",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.plassering.motGate", "tiltak.visuelt.hovedinndelingEndres"],
+              "veiledning": "Vender vinduet mot offentlig rom, og blir hoveduttrykket som i dag? Planen krever en helhetlig utforming."
+            }
+          ]
         },
         {
           "bestemmelseId": "1804-2013002-B11",
           "tema": "vinduer",
           "tekst": "Vinduer kan skiftes med tilsvarende plassering og størrelse uten endring av fasadens hoveduttrykk.",
-          "relevantFor": ["vindusendring"]
+          "relevantFor": ["vindusendring"],
+          "krav": [
+            {
+              "kravId": "avklar-tilsvarende-vindu",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.visuelt.plasseringEndres", "tiltak.visuelt.storrelseEndres", "tiltak.visuelt.hovedinndelingEndres"],
+              "veiledning": "Planen åpner for vindusbytte med tilsvarende plassering og størrelse uten endring av fasadens hoveduttrykk. Kan du si om de tre blir som i dag?"
+            }
+          ]
         }
       ],
       "berorteEiendommer": [
@@ -366,13 +461,39 @@
         {
           "bestemmelseId": "1508-2011008-B07",
           "tema": "vinduer",
-          "tekst": "Vinduer skal ha dempet fargebruk og tilpasses bebyggelsens karakter."
+          "tekst": "Vinduer skal ha dempet fargebruk og tilpasses bebyggelsens karakter.",
+          "relevantFor": ["vindusendring", "fasadeendring"],
+          "krav": [
+            {
+              "kravId": "avklar-farge-ved-fargeendring",
+              "gjelder": "tiltak.visuelt.fargeEndres",
+              "naar": true,
+              "paakrevdeFelter": ["tiltak.visuelt.nyFarge"],
+              "veiledning": "Hvilken farge skal vinduet få? Planen sier at vinduer skal ha dempet fargebruk og tilpasses bebyggelsens karakter."
+            }
+          ]
         },
         {
           "bestemmelseId": "0301-2022001-B09",
           "tema": "vinduer",
           "tekst": "Vinduer mot gate skal ha samme hovedinndeling og visuelle uttrykk som eksisterende vinduer.",
-          "relevantFor": ["vindusendring", "fasadeendring"]
+          "relevantFor": ["vindusendring", "fasadeendring"],
+          "krav": [
+            {
+              "kravId": "avklar-mot-gate",
+              "gjelder": "tiltak.type",
+              "naar": "vindusutskifting",
+              "paakrevdeFelter": ["tiltak.plassering.motGate"],
+              "veiledning": "Vender vinduet mot gate? Hvis ja, sier planen at vinduet skal ha samme hovedinndeling og visuelle uttrykk som eksisterende vinduer."
+            },
+            {
+              "kravId": "mot-gate-samme-uttrykk",
+              "gjelder": "tiltak.plassering.motGate",
+              "naar": true,
+              "paakrevdeFelter": ["tiltak.visuelt.hovedinndelingEndres"],
+              "veiledning": "Får vinduet samme hovedinndeling og visuelle uttrykk som de eksisterende vinduene mot gate?"
+            }
+          ]
         }
       ],
       "berorteEiendommer": [

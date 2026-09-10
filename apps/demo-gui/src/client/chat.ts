@@ -91,9 +91,32 @@ type Tolkning = { intent?: string; confidence?: number; modell?: string; advarse
 
 /** POST /ai/tolk-tiltaksomfang. */
 type Feltavklaring = { verdi: boolean | null; confidence: number };
+type Vindustiltak = {
+  type?: string;
+  plassering?: { motGate?: boolean | null };
+  visuelt?: {
+    storrelseEndres?: boolean | null;
+    plasseringEndres?: boolean | null;
+    hovedinndelingEndres?: boolean | null;
+    fargeEndres?: boolean | null;
+    nyFarge?: string | null;
+    materialeEndres?: boolean | null;
+  };
+  konstruksjon?: { baerendeKonstruksjonBerort?: boolean | null };
+};
+type Kravvurdering = {
+  bestemmelseId?: string;
+  kravId?: string;
+  status?: string;
+  mangler?: string[];
+  veiledning?: string;
+};
 type Tiltaksavklaring = {
   fasadeendring: Feltavklaring;
   endringBaerekonstruksjon: Feltavklaring;
+  tiltak?: Vindustiltak;
+  kravvurdering?: Kravvurdering[];
+  mangler?: string[];
   begrunnelse?: string;
   oppfolgingssporsmaal?: string | null;
   modell?: string;

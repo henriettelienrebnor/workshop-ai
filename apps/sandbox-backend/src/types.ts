@@ -256,6 +256,13 @@ export type Planbestemmelse = {
   tema: string;
   tekst: string;
   relevantFor?: string[];
+  krav?: {
+    kravId: string;
+    gjelder?: string;
+    naar?: boolean | string | number | null;
+    paakrevdeFelter: string[];
+    veiledning: string;
+  }[];
 };
 
 export type Reguleringsplan = {

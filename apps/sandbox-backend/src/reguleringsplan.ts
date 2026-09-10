@@ -63,7 +63,8 @@ export function planSammendrag(plan: Reguleringsplan) {
       bestemmelseId: b.bestemmelseId,
       tema: b.tema,
       tekst: b.tekst,
-      relevantFor: b.relevantFor ?? []
+      relevantFor: b.relevantFor ?? [],
+      krav: b.krav ?? []
     }))
   };
 }

@@ -1383,12 +1383,51 @@ function parseJsonObject(tekst: string): Record<string, unknown> | null {
  */
 type Feltavklaring = { verdi: boolean | null; confidence: number };
 
+type Vindustiltak = {
+  type: "vindusutskifting";
+  plassering: { motGate: boolean | null };
+  visuelt: {
+    storrelseEndres: boolean | null;
+    plasseringEndres: boolean | null;
+    hovedinndelingEndres: boolean | null;
+    fargeEndres: boolean | null;
+    nyFarge: string | null;
+    materialeEndres: boolean | null;
+  };
+  konstruksjon: { baerendeKonstruksjonBerort: boolean | null };
+};
+
+type Kravvurdering = {
+  bestemmelseId: string;
+  kravId: string;
+  status: "oppfylt" | "mangler_fakta";
+  mangler: string[];
+  veiledning: string;
+};
+
 /** Modellens uttrekk av byggesøknadens tiltaksomfang-avklaring. */
 type Tiltaksavklaring = {
   fasadeendring: Feltavklaring;
   endringBaerekonstruksjon: Feltavklaring;
+  tiltak?: Vindustiltak;
+  kravvurdering?: Kravvurdering[];
+  mangler?: string[];
   begrunnelse: string;
   oppfolgingssporsmaal: string | null;
+};
+
+const TOMT_VINDUSTILTAK: Vindustiltak = {
+  type: "vindusutskifting",
+  plassering: { motGate: null },
+  visuelt: {
+    storrelseEndres: null,
+    plasseringEndres: null,
+    hovedinndelingEndres: null,
+    fargeEndres: null,
+    nyFarge: null,
+    materialeEndres: null
+  },
+  konstruksjon: { baerendeKonstruksjonBerort: null }
 };
 
 function validateFeltavklaring(raa: unknown): Feltavklaring | null {
@@ -1411,8 +1450,38 @@ function validateTiltaksavklaring(raa: unknown): Tiltaksavklaring | null {
   return {
     fasadeendring,
     endringBaerekonstruksjon,
+    tiltak: validateVindustiltak(data.tiltak) ?? undefined,
     begrunnelse: typeof data.begrunnelse === "string" ? data.begrunnelse : "",
     oppfolgingssporsmaal: typeof data.oppfolgingssporsmaal === "string" ? data.oppfolgingssporsmaal : null
+  };
+}
+
+function boolEllerNull(verdi: unknown): boolean | null {
+  return typeof verdi === "boolean" ? verdi : null;
+}
+
+function tekstEllerNull(verdi: unknown): string | null {
+  return typeof verdi === "string" && verdi.trim() ? verdi.trim() : null;
+}
+
+function validateVindustiltak(raa: unknown): Vindustiltak | null {
+  if (!raa || typeof raa !== "object") return null;
+  const data = raa as Record<string, unknown>;
+  const plassering = (data.plassering || {}) as Record<string, unknown>;
+  const visuelt = (data.visuelt || {}) as Record<string, unknown>;
+  const konstruksjon = (data.konstruksjon || {}) as Record<string, unknown>;
+  return {
+    type: "vindusutskifting",
+    plassering: { motGate: boolEllerNull(plassering.motGate) },
+    visuelt: {
+      storrelseEndres: boolEllerNull(visuelt.storrelseEndres),
+      plasseringEndres: boolEllerNull(visuelt.plasseringEndres),
+      hovedinndelingEndres: boolEllerNull(visuelt.hovedinndelingEndres),
+      fargeEndres: boolEllerNull(visuelt.fargeEndres),
+      nyFarge: tekstEllerNull(visuelt.nyFarge),
+      materialeEndres: boolEllerNull(visuelt.materialeEndres)
+    },
+    konstruksjon: { baerendeKonstruksjonBerort: boolEllerNull(konstruksjon.baerendeKonstruksjonBerort) }
   };
 }
 
@@ -1551,6 +1620,93 @@ function vurderBaerekonstruksjon(body: AiKropp): Feltavklaring {
   return { verdi: null, confidence: 0.3 };
 }
 
+function settHvisKjent<T extends Record<string, unknown>, K extends keyof T>(objekt: T, noekkel: K, verdi: T[K] | null): void {
+  if (verdi !== null) {
+    objekt[noekkel] = verdi;
+  }
+}
+
+function boolFraTekst(tekst: string, ja: string[], nei: string[]): boolean | null {
+  const harNei = treff(tekst, nei);
+  const harJa = treff(tekst, ja);
+  if (harJa && !harNei) return true;
+  if (harNei && !harJa) return false;
+  return null;
+}
+
+function byggVindustiltak(svar: Tiltaksavklaring, body: AiKropp, fasade: { felt: Feltavklaring }, baering: Feltavklaring): Vindustiltak {
+  const tekst = tiltaksomfangTekst(body);
+  const tiltak: Vindustiltak = structuredClone(svar.tiltak ?? TOMT_VINDUSTILTAK);
+  settHvisKjent(tiltak.visuelt, "storrelseEndres", boolFraTekst(tekst, fasadeKjennetegn[0].endret, fasadeKjennetegn[0].uendret));
+  settHvisKjent(tiltak.visuelt, "plasseringEndres", boolFraTekst(tekst, fasadeKjennetegn[2].endret, fasadeKjennetegn[2].uendret));
+  settHvisKjent(tiltak.visuelt, "hovedinndelingEndres", boolFraTekst(tekst, fasadeKjennetegn[3].endret, fasadeKjennetegn[3].uendret));
+  settHvisKjent(tiltak.visuelt, "fargeEndres", boolFraTekst(tekst, fasadeKjennetegn[4].endret, fasadeKjennetegn[4].uendret));
+  settHvisKjent(tiltak.visuelt, "materialeEndres", boolFraTekst(tekst, fasadeKjennetegn[5].endret, fasadeKjennetegn[5].uendret));
+  settHvisKjent(tiltak.plassering, "motGate", boolFraTekst(
+    tekst,
+    ["mot gate", "mot vei", "mot vegen", "mot veien"],
+    ["ikke mot gate", "ikke mot vei", "mot hage", "mot bakgård", "mot bakgard"]
+  ));
+  settHvisKjent(tiltak.konstruksjon, "baerendeKonstruksjonBerort", baering.verdi);
+
+  if (fasade.felt.verdi === true && tiltak.visuelt.fargeEndres === null && treff(tekst, fasadeKjennetegn[4].endret)) {
+    tiltak.visuelt.fargeEndres = true;
+  }
+
+  return tiltak;
+}
+
+function lesSti(objekt: unknown, sti: string | undefined): unknown {
+  if (!sti) return undefined;
+  const deler = sti.replace(/^tiltak\./, "").split(".");
+  let verdi: unknown = objekt;
+  for (const del of deler) {
+    if (!verdi || typeof verdi !== "object") return undefined;
+    verdi = (verdi as Record<string, unknown>)[del];
+  }
+  return verdi;
+}
+
+function erTomKravverdi(verdi: unknown): boolean {
+  return verdi === null || verdi === undefined || (typeof verdi === "string" && !verdi.trim());
+}
+
+function strukturerteKravFraPlan(body: AiKropp): ({ bestemmelseId: string; kravId: string; gjelder?: string; naar?: unknown; paakrevdeFelter: string[]; veiledning: string })[] {
+  const plan = body?.kontekst?.reguleringsplan;
+  if (!plan || typeof plan !== "object") return [];
+  const bestemmelser = Array.isArray((plan as Record<string, unknown>).vindusbestemmelser)
+    ? (plan as Record<string, unknown>).vindusbestemmelser as Record<string, unknown>[]
+    : [];
+  return bestemmelser.flatMap((bestemmelse) => {
+    const bestemmelseId = typeof bestemmelse.bestemmelseId === "string" ? bestemmelse.bestemmelseId : "ukjent-bestemmelse";
+    const krav = Array.isArray(bestemmelse.krav) ? bestemmelse.krav as Record<string, unknown>[] : [];
+    return krav.map((kravrad, indeks) => ({
+      bestemmelseId,
+      kravId: typeof kravrad.kravId === "string" ? kravrad.kravId : `${bestemmelseId}-${indeks + 1}`,
+      gjelder: typeof kravrad.gjelder === "string" ? kravrad.gjelder : undefined,
+      naar: kravrad.naar,
+      paakrevdeFelter: Array.isArray(kravrad.paakrevdeFelter) ? kravrad.paakrevdeFelter.filter((felt): felt is string => typeof felt === "string") : [],
+      veiledning: typeof kravrad.veiledning === "string" ? kravrad.veiledning : "Kan du beskrive tiltaket litt mer?"
+    }));
+  });
+}
+
+function vurderStrukturerteKrav(tiltak: Vindustiltak, body: AiKropp): Kravvurdering[] {
+  return strukturerteKravFraPlan(body).map((krav) => {
+    const aktivt = krav.gjelder ? lesSti(tiltak, krav.gjelder) === krav.naar : true;
+    const mangler = aktivt
+      ? krav.paakrevdeFelter.filter((felt) => erTomKravverdi(lesSti(tiltak, felt)))
+      : [];
+    return {
+      bestemmelseId: krav.bestemmelseId,
+      kravId: krav.kravId,
+      status: mangler.length ? "mangler_fakta" : "oppfylt",
+      mangler,
+      veiledning: krav.veiledning
+    };
+  });
+}
+
 function planstyrteOppfolgingsdeler(body: AiKropp): string[] {
   const tekst = tiltaksomfangTekst(body);
   const planTekst = normalizeText(JSON.stringify(body?.kontekst?.reguleringsplan || {}));
@@ -1587,17 +1743,48 @@ function byggTiltaksomfangOppfolging(fasade: { mangler: string[] }, baering: Fel
 function medDeterministiskTiltaksomfangSjekk(svar: Tiltaksavklaring, body: AiKropp): Tiltaksavklaring {
   const fasade = vurderFasadeendring(body);
   const baering = vurderBaerekonstruksjon(body);
+  const tiltak = byggVindustiltak(svar, body, fasade, baering);
+  const kravvurdering = vurderStrukturerteKrav(tiltak, body);
+  const kravmangler = kravvurdering.filter((krav) => krav.status === "mangler_fakta");
   const neste: Tiltaksavklaring = {
     ...svar,
     fasadeendring: fasade.felt,
     endringBaerekonstruksjon: baering,
+    tiltak,
+    kravvurdering,
+    mangler: [...new Set(kravmangler.flatMap((krav) => krav.mangler))],
     begrunnelse: [svar.begrunnelse, fasade.kilde].filter(Boolean).join(" ")
   };
 
-  if (planstyrteOppfolgingsdeler(body).length || neste.fasadeendring.verdi === null || neste.endringBaerekonstruksjon.verdi === null) {
+  if (kravmangler.length) {
+    neste.oppfolgingssporsmaal = `Planbestemmelsene trenger mer informasjon: ${kravmangler.map((krav) => krav.veiledning).join(" ")}`;
+  } else if (neste.fasadeendring.verdi === null || neste.endringBaerekonstruksjon.verdi === null) {
     neste.oppfolgingssporsmaal = byggTiltaksomfangOppfolging(fasade, baering, body);
   }
   return neste;
+}
+
+function loggTiltaksomfangUttrekk(svar: Tiltaksavklaring, body: AiKropp): void {
+  const plan = body?.kontekst?.reguleringsplan;
+  const planId = plan && typeof plan === "object" && typeof (plan as Record<string, unknown>).planId === "string"
+    ? (plan as Record<string, unknown>).planId
+    : null;
+  console.log("tolk-tiltaksomfang: konstruert tiltak-json");
+  console.log(JSON.stringify({
+    sporingsId: body?.sporingsId ?? null,
+    planId,
+    tiltak: svar.tiltak ?? null,
+    fasadeendring: svar.fasadeendring,
+    endringBaerekonstruksjon: svar.endringBaerekonstruksjon
+  }, null, 2));
+  console.log("tolk-tiltaksomfang: kravvalidering");
+  console.log(JSON.stringify({
+    sporingsId: body?.sporingsId ?? null,
+    planId,
+    kravvurdering: svar.kravvurdering ?? [],
+    mangler: svar.mangler ?? [],
+    oppfolgingssporsmaal: svar.oppfolgingssporsmaal ?? null
+  }, null, 2));
 }
 
 function buildTiltaksomfangPrompt(body: AiKropp): string {
@@ -1608,7 +1795,8 @@ function buildTiltaksomfangPrompt(body: AiKropp): string {
   return [
     "Du hjelper en innbygger med å avklare et vindusbytte i en byggesøknad, gjennom en kort samtale.",
     "Svar kun med gyldig JSON og ingen annen tekst. Skjema:",
-    '{"fasadeendring":{"verdi":true|false|null,"confidence":0.0},"endringBaerekonstruksjon":{"verdi":true|false|null,"confidence":0.0},"begrunnelse":"kort tekst","oppfolgingssporsmaal":"spørsmål til bruker, eller null"}',
+    '{"tiltak":{"type":"vindusutskifting","plassering":{"motGate":true|false|null},"visuelt":{"storrelseEndres":true|false|null,"plasseringEndres":true|false|null,"hovedinndelingEndres":true|false|null,"fargeEndres":true|false|null,"nyFarge":"tekst eller null","materialeEndres":true|false|null},"konstruksjon":{"baerendeKonstruksjonBerort":true|false|null}},"fasadeendring":{"verdi":true|false|null,"confidence":0.0},"endringBaerekonstruksjon":{"verdi":true|false|null,"confidence":0.0},"begrunnelse":"kort tekst","oppfolgingssporsmaal":"spørsmål til bruker, eller null"}',
+    "Fyll tiltak-objektet med fakta fra brukerens tekst og historikken. Bruk null for felt brukeren ikke har oppgitt. Ikke gjett. Planbestemmelsene brukes som krav etterpå, men du skal ikke avgjøre saken.",
     "fasadeendring er sann hvis det nye vinduet får en annen størrelse, form, plassering, stil, farge eller materialbruk enn det som byttes ut. En fargeendring alene er nok til å telle som fasadeendring - den trenger ikke komme sammen med en endring i størrelse, form eller plassering.",
     "fasadeendring har seks kjennetegn: størrelse, form, plassering, stil, farge og materialbruk. Bruker kan bekrefte at ett av dem er uendret uten å ha sagt noe om de andre - sett fasadeendring.verdi=false med høy confidence først når bruker har uttalt seg om alle seks, eller sagt noe som tydelig dekker alle (for eksempel «helt likt i alle henseender» eller «ingen andre endringer»). Er bare ett eller noen kjennetegn nevnt, hold confidence lav og spør om resten - ett av dem kan fortsatt vise seg å endre seg.",
     "endringBaerekonstruksjon er sann hvis installasjonen krever endring i bærende vegg eller konstruksjon, for eksempel et større vindushull eller et nytt hull. Dette er et eget spørsmål bruker må ha uttalt seg om direkte - at plassering, størrelse, form, stil eller farge er uendret sier ingenting om bærekonstruksjonen, og skal ikke brukes til å utlede en verdi eller høy confidence her.",
@@ -2493,6 +2681,7 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
         `tolk-tiltaksomfang: fasadeendring=${svar.fasadeendring.verdi} (confidence ${svar.fasadeendring.confidence}), ` +
           `endringBaerekonstruksjon=${svar.endringBaerekonstruksjon.verdi} (confidence ${svar.endringBaerekonstruksjon.confidence})`
       );
+      loggTiltaksomfangUttrekk(svar, body);
       await addRevisjon({
         sporingsId: body.sporingsId || newId("flyt"),
         handling: "KI_TOLKNING",
