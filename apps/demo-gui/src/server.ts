@@ -20,14 +20,14 @@ const ASSETS: Record<string, string> = {
   "ds-ksdigital.css": "text/css; charset=utf-8",
   // The service registry. Dashboard and API explorer both read it, so the list of
   // services exists once instead of once per page. See apps/shared/tjenester.json.
-  "tjenester.json": "application/json; charset=utf-8"
+  "tjenester.json": "application/json; charset=utf-8",
 };
 
 // Delt klientkode, servert til begge frontendene. .ts, og nettleseren merker
 // ingenting: den går etter Content-Type, og shared/assets.ts stripper
 // typene på vei ut.
 const DELTE_KLIENTFILER: Record<string, string> = {
-  "felles.ts": KLIENTSKRIPT
+  "felles.ts": KLIENTSKRIPT,
 };
 
 // One script per page, served from this app rather than shared because that is
@@ -39,7 +39,8 @@ const KLIENTFILER: Record<string, string> = {
   "agent.ts": KLIENTSKRIPT,
   "utforsker.ts": KLIENTSKRIPT,
   "ds-eksempel.ts": KLIENTSKRIPT,
-  "callback.ts": KLIENTSKRIPT
+  "callback.ts": KLIENTSKRIPT,
+  "bygg.ts": KLIENTSKRIPT,
 };
 
 const sider: Record<string, string> = {
@@ -54,48 +55,60 @@ const sider: Record<string, string> = {
   "/agent": "agent.html",
   "/agent.html": "agent.html",
   "/utforsker": "utforsker.html",
+  "/bygg": "bygg.html",
   // Template for teams building their own frontend. See docs/designsystem.md.
   "/ds-eksempel": "ds-eksempel.html",
   // The redirect_uri registered with ID-porten. Same path for every page: the page
   // to return to travels in `state`, not in the callback URL.
-  "/callback": "callback.html"
+  "/callback": "callback.html",
 };
 
-const server = createServer(async (request: IncomingMessage, response: ServerResponse) => {
-  const sti = (request.url || "/").split("?")[0];
+const server = createServer(
+  async (request: IncomingMessage, response: ServerResponse) => {
+    const sti = (request.url || "/").split("?")[0];
 
-  if (sti === "/helse") {
-    send(response, 200, JSON.stringify({ status: "ok", tjeneste: "demo-gui" }), "application/json; charset=utf-8");
-    return;
-  }
-
-  for (const [prefiks, katalog, tillatte] of [
-    // /delt/ før /assets/: felles.ts er .ts og strippes, resten er statiske
-    // filer som sendes uendret. Rekkefølgen betyr ingenting her siden
-    // prefiksene ikke overlapper, men holder de to slagene fra hverandre.
-    ["/delt/", deltKlientDir, DELTE_KLIENTFILER],
-    ["/assets/", sharedDir, ASSETS],
-    ["/client/", klientDir, KLIENTFILER]
-  ] as const) {
-    if (!sti.startsWith(prefiks)) continue;
-    const navn = sti.slice(prefiks.length);
-    const contentType = tillatte[navn];
-    if (!contentType) {
-      send(response, 404, "Fant ikke fil.", "text/plain; charset=utf-8");
+    if (sti === "/helse") {
+      send(
+        response,
+        200,
+        JSON.stringify({ status: "ok", tjeneste: "demo-gui" }),
+        "application/json; charset=utf-8",
+      );
       return;
     }
-    await sendFil(response, path.join(katalog, navn), contentType);
-    return;
-  }
 
-  const side = sider[sti];
-  if (side) {
-    await sendFil(response, path.join(__dirname, side), "text/html; charset=utf-8");
-    return;
-  }
+    for (const [prefiks, katalog, tillatte] of [
+      // /delt/ før /assets/: felles.ts er .ts og strippes, resten er statiske
+      // filer som sendes uendret. Rekkefølgen betyr ingenting her siden
+      // prefiksene ikke overlapper, men holder de to slagene fra hverandre.
+      ["/delt/", deltKlientDir, DELTE_KLIENTFILER],
+      ["/assets/", sharedDir, ASSETS],
+      ["/client/", klientDir, KLIENTFILER],
+    ] as const) {
+      if (!sti.startsWith(prefiks)) continue;
+      const navn = sti.slice(prefiks.length);
+      const contentType = tillatte[navn];
+      if (!contentType) {
+        send(response, 404, "Fant ikke fil.", "text/plain; charset=utf-8");
+        return;
+      }
+      await sendFil(response, path.join(katalog, navn), contentType);
+      return;
+    }
 
-  send(response, 404, "Fant ikke side.", "text/plain; charset=utf-8");
-});
+    const side = sider[sti];
+    if (side) {
+      await sendFil(
+        response,
+        path.join(__dirname, side),
+        "text/html; charset=utf-8",
+      );
+      return;
+    }
+
+    send(response, 404, "Fant ikke side.", "text/plain; charset=utf-8");
+  },
+);
 
 server.listen(port, () => {
   console.log(`Demo-GUI kjører på http://localhost:${port}`);
