@@ -762,6 +762,78 @@ paths:
               schema:
                 $ref: "#/components/schemas/SjekkResultat"
 
+  /api/eiendom/saksgrunnlag:
+    get:
+      summary: Hent eiendom, reguleringsplan og naboliste for én adresse
+      security:
+        - idporten: []
+        - maskinporten: [ks:innbyggerdialog:les]
+      description: >
+        Byggesøknadens datagrunnlag i ett oppslag. Adressen slås opp i
+        matrikkelen, matrikkel-id-en finner planen i data/reguleringsplan.json,
+        og gaten gir naboene som skal varsles. Nabolisten er uten eiere: et
+        nabovarsel trenger adressene, ikke hvem som bor der.
+      parameters:
+        - name: adresse
+          in: query
+          required: true
+          schema:
+            type: string
+            example: Ådlandsstraumen 10
+        - name: personId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Saksgrunnlag returnert
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  adresse:
+                    type: string
+                  eiendom:
+                    type: object
+                    description: Matrikkelenheten adressen peker på.
+                  reguleringsplan:
+                    type: object
+                    nullable: true
+                    description: >
+                      Gjeldende plan, sammenstilt som lesbare lister. null når
+                      eiendommen ikke er omfattet av noen registrert plan.
+                  planmerknad:
+                    type: string
+                    nullable: true
+                    description: Settes bare når reguleringsplan er null.
+                  naboer:
+                    type: array
+                    items:
+                      type: object
+                  naboadresser:
+                    type: array
+                    items:
+                      type: string
+                  antallNaboer:
+                    type: integer
+                  nabolistegrunnlag:
+                    type: string
+                    description: Hva nabolisten faktisk bygger på.
+        "400":
+          description: adresse mangler
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feil"
+        "404":
+          description: Fant ingen matrikkelenhet for adressen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feil"
+
   /api/regler/satser:
     get:
       summary: Hent moderasjonsordninger med regler og inntektsgrenser

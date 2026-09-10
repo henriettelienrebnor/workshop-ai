@@ -70,18 +70,49 @@ export type Stegbilde = {
   url?: string;
 };
 
+/**
+ * Opplysninger et steg vil vise fram, som etikett og verdi.
+ *
+ * `verdi` er samme malform som `bilde.kilde`: {resultat.<stegId>.<sti>}, der
+ * stien kan gå ned i objektet et tidligere steg hentet. `tekst` settes av
+ * serveren; punkter som ikke lot seg slå opp faller bort, slik at et steg som
+ * mangler data viser mindre - ikke en liste med tomme rader.
+ */
+export type Visningspunkt = {
+  etikett: string;
+  verdi: string;
+  tekst?: string;
+};
+
+export type Stegvisning = {
+  tittel?: string;
+  punkter: Visningspunkt[];
+};
+
 type StegFelles = {
   id: string;
   tittel?: string;
   tekst?: string;
   bilde?: Stegbilde;
+  visning?: Stegvisning;
 };
 
 export type ProsessSteg = StegFelles & (
   | { type: "INFO"; venterPaaBruker?: boolean }
   | { type: "QUESTION"; felter?: SpoersmaalsFelt[] }
   | { type: "CONSENT_REQUEST"; formaal?: string; dataKilder?: string[] }
-  | { type: "DATA_FETCH"; api: ApiKall; kreverSamtykke?: string; polling?: Polling }
+  | {
+      type: "DATA_FETCH";
+      api: ApiKall;
+      kreverSamtykke?: string;
+      polling?: Polling;
+      /**
+       * Navngitte felter plukket ut av svaret, med sti inn i det. Uten dette må
+       * neste steg vise til hele stien, og et resultat som ligger flere nivåer
+       * ned - som eiendomsadressen i et verifisert bevis - blir uleselig.
+       */
+      hentUt?: Record<string, string>;
+    }
   | { type: "SJEKK"; api: ApiKall; feilmelding?: string }
   | { type: "SUMMARY" }
   | { type: "SUBMIT" }
@@ -213,6 +244,43 @@ export type Prosesskatalog = {
   meta: Record<string, unknown>;
 };
 
+/*
+ * data/reguleringsplan.json - et forenklet kommunalt planregister.
+ *
+ * Planene er knyttet til eiendommer gjennom `berorteEiendommer[].matrikkelId`,
+ * de samme id-ene matrikkel-mock deler ut. Det er hele koblingen: en adresse
+ * slås opp i matrikkelen, og matrikkel-id-en finner planen.
+ */
+export type Planbestemmelse = {
+  bestemmelseId: string;
+  tema: string;
+  tekst: string;
+  relevantFor?: string[];
+};
+
+export type Reguleringsplan = {
+  planId: string;
+  planNavn: string;
+  plantype: string;
+  planstatus: string;
+  kommunenummer: string;
+  kommune: string;
+  planbestemmelseDato?: string;
+  ikrafttredelsesdato?: string;
+  lovgrunnlag?: string;
+  formaal: { kode: string; navn: string; underformaal?: string }[];
+  hensynssoner: { kode: string; navn: string; beskrivelse?: string }[];
+  bestemmelsesomraader: { kode: string; navn: string; beskrivelse?: string }[];
+  planbestemmelser: Planbestemmelse[];
+  berorteEiendommer: { matrikkelId: string; gnr?: number; bnr?: number; adresse?: string }[];
+};
+
+export type Planregister = {
+  kilde: Record<string, unknown>;
+  planer: Reguleringsplan[];
+  eiendommerUtenRegistrertPlan: { matrikkelId: string; merknad?: string }[];
+};
+
 export type State = {
   personer: Person[];
   husstander: Husstand[];
@@ -230,6 +298,7 @@ export type State = {
   fritidsdeltakelse: MedFelter[];
   fritidsaktiviteter: MedFelter[];
   tjenestetilbud: MedFelter[];
+  reguleringsplan: Planregister;
 };
 
 /*

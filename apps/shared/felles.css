@@ -246,6 +246,27 @@ textarea.dark {
   border-radius: 8px;
 }
 
+/* Opplysninger et steg viser fram, som etikett og verdi. */
+.stegvisning h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.stegvisning dl {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 4px 14px;
+  margin: 0;
+}
+
+.stegvisning dt {
+  font-weight: 600;
+}
+
+.stegvisning dd {
+  margin: 0;
+}
+
 /*
  * A guardrail that fires silently cannot be demonstrated, so it gets its own
  * look rather than passing as an ordinary assistant reply.

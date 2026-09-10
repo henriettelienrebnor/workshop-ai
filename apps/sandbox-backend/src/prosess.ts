@@ -16,18 +16,43 @@ import type {
   Prosessoekt,
   SjekkResultat,
   Stegtype,
-  State
+  State,
+  Visningspunkt
 } from "./types.ts";
+
+/**
+ * En verdi inne i et svar, pekt ut med en sti.
+ *
+ * Stien går ned i objektet med punktum, og et tall er en indeks i en liste. Det
+ * er det som skal til for å nå en claim som ligger flere nivåer nede - som
+ * eiendomsadressen i et verifisert bevis, under credentials[<id>][0].claims.
+ */
+function slaaOppSti(rot: unknown, sti: string): unknown {
+  let verdi = rot;
+  for (const ledd of sti.split(".")) {
+    if (verdi === null || typeof verdi !== "object") return undefined;
+    verdi = (verdi as Record<string, unknown>)[ledd];
+  }
+  return verdi;
+}
+
+/** Samme oppslag, men fra {resultat.<stegId>.<sti>} i en mal. */
+function slaaOppResultatverdi(oekt: Prosessoekt, sti: string): unknown {
+  return slaaOppSti(oekt.resultater, sti);
+}
+
+const RESULTATMAL = /\{resultat\.([^}]+)\}/g;
 
 function replaceParametere(url: string, oekt: Prosessoekt) {
   let result = url;
   result = result.replace(/{personId}/g, encodeURIComponent(oekt.personId));
-  // What an earlier step's response left behind: {resultat.<stegId>.<felt>}. A
-  // field that is not there yet stays unsubstituted, so the failing URL still
-  // names the placeholder that was never filled.
-  result = result.replace(/\{resultat\.([^.}]+)\.([^}]+)\}/g, (mal, stegId, felt) => {
-    const verdi = (oekt.resultater?.[stegId] as Record<string, unknown> | undefined)?.[felt];
-    return verdi === undefined || verdi === null ? mal : encodeURIComponent(String(verdi));
+  // What an earlier step's response left behind. A path that resolves to nothing -
+  // or to an object, which no URL can carry - stays unsubstituted, so the failing
+  // request still names the placeholder that was never filled.
+  result = result.replace(RESULTATMAL, (mal, sti) => {
+    const verdi = slaaOppResultatverdi(oekt, sti);
+    const enkel = typeof verdi === "string" || typeof verdi === "number" || typeof verdi === "boolean";
+    return enkel ? encodeURIComponent(String(verdi)) : mal;
   });
   for (const [stegId, svarVerdi] of Object.entries(oekt.svar || {})) {
     const enkeltMal = new RegExp(`\\{svar\\.${stegId}\\}`, "g");
@@ -73,27 +98,93 @@ function replaceParametere(url: string, oekt: Prosessoekt) {
  * injection surface - `javascript:` in an <img> src is the old version of it, and
  * SVG is the current one.
  */
-const BILDEMAL = /^\{resultat\.([^.}]+)\.([^}]+)\}$/;
+const BILDEMAL = /^\{resultat\.([^}]+)\}$/;
 const BILDEDATA = /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 
 function medOppslaattBilde(steg: ProsessSteg, oekt: Prosessoekt): ProsessSteg {
   const kilde = steg.bilde?.kilde;
   if (typeof kilde !== "string") return steg;
   const treff = BILDEMAL.exec(kilde);
-  const verdi = treff
-    ? (oekt.resultater?.[treff[1]] as Record<string, unknown> | undefined)?.[treff[2]]
-    : kilde;
+  const verdi = treff ? slaaOppResultatverdi(oekt, treff[1]) : kilde;
   if (typeof verdi !== "string" || !BILDEDATA.test(verdi)) return steg;
   // Kopi: definisjonen i katalogen deles av alle økter og skal ikke bære
   // resultatet fra én av dem.
   return { ...steg, bilde: { ...steg.bilde!, url: verdi } };
 }
 
+/*
+ * Opplysninger et steg vil vise fram, slått opp på samme måte som bildet.
+ *
+ * En liste blir én linje - naboadresser og planbestemmelser er lister, og
+ * innbyggeren skal lese dem, ikke JSON-en de kom i. Et objekt blir ingenting:
+ * det finnes ingen lesbar form for det her, og «[object Object]» i et
+ * saksgrunnlag er verre enn en rad som mangler.
+ */
+function somVisningstekst(verdi: unknown): string | null {
+  if (verdi === null || verdi === undefined || verdi === "") return null;
+  if (Array.isArray(verdi)) {
+    const deler = verdi.map(somVisningstekst).filter((del): del is string => Boolean(del));
+    return deler.length ? deler.join(" · ") : null;
+  }
+  if (typeof verdi === "object") return null;
+  return String(verdi);
+}
+
+function medOppslaattVisning(steg: ProsessSteg, oekt: Prosessoekt): ProsessSteg {
+  const punkter = steg.visning?.punkter;
+  if (!Array.isArray(punkter)) return steg;
+  const oppslaatt: Visningspunkt[] = [];
+  for (const punkt of punkter) {
+    const tekst = losVisningsverdi(punkt.verdi, oekt);
+    if (tekst) oppslaatt.push({ ...punkt, tekst });
+  }
+  return { ...steg, visning: { ...steg.visning!, punkter: oppslaatt } };
+}
+
+/*
+ * En hel mal ({resultat...} og ingenting annet) slås opp som verdi, så en liste
+ * fortsatt er en liste. Står malen inne i en setning, settes den inn som tekst -
+ * og mangler én av dem, faller punktet bort i stedet for å vise en halv setning.
+ */
+function losVisningsverdi(verdi: string, oekt: Prosessoekt): string | null {
+  const helMal = BILDEMAL.exec(verdi);
+  if (helMal) return somVisningstekst(slaaOppResultatverdi(oekt, helMal[1]));
+  if (!verdi.includes("{resultat.")) return somVisningstekst(verdi);
+  let mangler = false;
+  const tekst = verdi.replace(RESULTATMAL, (_mal, sti) => {
+    const del = somVisningstekst(slaaOppResultatverdi(oekt, sti));
+    if (del === null) mangler = true;
+    return del ?? "";
+  });
+  return mangler ? null : tekst;
+}
+
+/**
+ * Svaret fra et DATA_FETCH, med de navngitte feltene steget ba om lagt ved.
+ *
+ * Uten dette måtte neste steg vise til hele stien inn i svaret. Eiendomsadressen
+ * fra lommeboken ligger under credentials[<dcql-id>][0].claims.eiendomsadresse,
+ * og en URL som bærer den stien er ikke en URL noen retter opp når beviset
+ * endrer form. `hentUt` er der forfatteren sier hvor feltet ligger, én gang.
+ *
+ * Det opprinnelige svaret beholdes ved siden av: det er dette steget faktisk
+ * fikk, og et utplukk som bommer skal kunne feilsøkes mot kilden.
+ */
+function medUtplukk(data: unknown, hentUt: Record<string, string> | undefined) {
+  if (!hentUt || data === null || typeof data !== "object") return data;
+  const utplukk: Record<string, unknown> = {};
+  for (const [navn, sti] of Object.entries(hentUt)) {
+    const verdi = slaaOppSti(data, sti);
+    if (verdi !== undefined) utplukk[navn] = verdi;
+  }
+  return { ...(data as Record<string, unknown>), ...utplukk };
+}
+
 export function buildProsessoektRespons(oekt: Prosessoekt, prosess: ProsessDefinisjon | null) {
   const steg = prosess?.steg?.[oekt.stegIndex] || null;
   return {
     ...oekt,
-    aktivtSteg: steg ? medOppslaattBilde(steg, oekt) : null,
+    aktivtSteg: steg ? medOppslaattVisning(medOppslaattBilde(steg, oekt), oekt) : null,
     totaltAntallSteg: prosess?.steg?.length || 0
   };
 }
@@ -369,8 +460,8 @@ export const stegHandlers: Record<Stegtype, (k: StegContext) => unknown | Promis
 
   DATA_FETCH: async ({ tilstand, oekt, steg, kaller }) => {
     const data = await getFraKatalog(tilstand, oekt, steg, kaller);
-    oekt.resultater[steg.id] = data;
-    return data;
+    oekt.resultater[steg.id] = medUtplukk(data, steg.hentUt);
+    return oekt.resultater[steg.id];
   },
 
   SJEKK: async ({ tilstand, oekt, steg, kaller }) => {

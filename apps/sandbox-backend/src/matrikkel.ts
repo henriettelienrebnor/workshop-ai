@@ -90,3 +90,21 @@ export async function eiendommerForPerson(personId: string): Promise<Eiendom[]> 
   );
   return Array.isArray(treff) ? treff : [];
 }
+
+// One address, one matrikkelenhet. This is the join the byggesøknad needs: the
+// address comes out of the citizen's eiendomsbevis as text, and everything after
+// it - the plan register, the neighbours - is keyed on matrikkelId.
+export async function eiendomFraAdresse(adresse: string): Promise<Eiendom | null> {
+  const treff = await hent(`/mock/matrikkel/eiendom-oppslag?adresse=${encodeURIComponent(adresse)}`);
+  return treff?.matrikkelId ? treff : null;
+}
+
+// The street, paginated by the mock. No personId, so no owner lists are sent -
+// which is right for a nabovarsel: it needs the addresses, not who lives there.
+export async function eiendommerIGate(gateNavn: string, grense = 25): Promise<Eiendom[]> {
+  const svar = await hent(
+    `/mock/matrikkel/eiendommer?gate=${encodeURIComponent(gateNavn)}&limit=${grense}`
+  );
+  const liste = Array.isArray(svar) ? svar : svar?.items;
+  return Array.isArray(liste) ? liste : [];
+}

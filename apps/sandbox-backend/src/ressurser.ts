@@ -23,11 +23,14 @@ import { buildAdvarsel, tryUpstream } from "./upstream.ts";
 import { addRevisjon } from "./revisjon.ts";
 import { compilePathPattern, matchPath, type PathParams } from "./routing.ts";
 import {
+  eiendomFraAdresse,
   eiendommerForPerson,
   eiendommerForPersonIGate,
+  eiendommerIGate,
   findGate,
   getGater
 } from "./matrikkel.ts";
+import { finnPlanForEiendom, planSammendrag } from "./reguleringsplan.ts";
 import {
   findPerson,
   getHusstandForPerson,
@@ -437,6 +440,80 @@ export const ressurser: Ressurs[] = [
           gate: eiendom.adressenavn,
           kommune: eiendom.kommune
         })),
+        syntetisk: true
+      };
+    }
+  },
+  {
+    // Byggesøknadens datagrunnlag i ett oppslag: adressen fra eiendomsbeviset
+    // blir en matrikkelenhet, matrikkelenheten finner planen, og gaten gir
+    // naboene som skal varsles. Tre kilder i én ressurs framfor tre steg, fordi
+    // de to siste er meningsløse uten den første - et steg som slår opp planen
+    // for en adresse ingen matrikkelenhet kjenner, har ingenting å feile på.
+    metode: "GET",
+    sti: "/api/eiendom/saksgrunnlag",
+    ressurs: "eiendom-saksgrunnlag",
+    beskrivelse:
+      "Eiendom, gjeldende reguleringsplan og naboliste for én adresse. " +
+      "Slår opp adressen i matrikkelen og kobler videre til planregisteret.",
+    formaal: "Behandle byggesøknad",
+    valider: ({ sok }) => {
+      if (!sok.get("adresse")?.trim()) {
+        throw new HttpError("adresse er påkrevd.", 400, {
+          hint: "Adressen kommer fra eiendomsbeviset. Bruk ?adresse=Storgata 5.",
+          syntetisk: true
+        });
+      }
+    },
+    handter: async ({ tilstand, sok }) => {
+      const adresse = sok.get("adresse")!.trim();
+      const eiendom = await eiendomFraAdresse(adresse);
+      if (!eiendom) {
+        throw new HttpError(`Fant ingen matrikkelenhet for adressen "${adresse}".`, 404, {
+          hint: "Adressen må skrives som i matrikkelen, for eksempel «Ådlandsstraumen 10».",
+          syntetisk: true
+        });
+      }
+
+      const plan = finnPlanForEiendom(tilstand, eiendom.matrikkelId);
+      // Naboene er de andre eiendommene i samme gate. En ekte naboliste går på
+      // geometri; her er gaten den nærmeste tilnærmingen registeret rekker til,
+      // og det står i svaret framfor å bli presentert som mer enn det er.
+      const iGaten = eiendom.adressenavn ? await eiendommerIGate(eiendom.adressenavn) : [];
+      const naboer = iGaten
+        .filter((kandidat) => kandidat.matrikkelId !== eiendom.matrikkelId)
+        .map((nabo) => ({
+          matrikkelId: nabo.matrikkelId,
+          adresse: nabo.adresse,
+          gnr: nabo.gnr,
+          bnr: nabo.bnr
+        }));
+
+      return {
+        adresse: eiendom.adresse,
+        eiendom: {
+          matrikkelId: eiendom.matrikkelId,
+          adresse: eiendom.adresse,
+          gnr: eiendom.gnr,
+          bnr: eiendom.bnr,
+          bruksenhetstype: eiendom.bruksenhetstype,
+          gate: eiendom.adressenavn,
+          kommune: eiendom.kommune,
+          kommunenummer: eiendom.kommunenummer,
+          matrikkelnummer: `${eiendom.kommunenummer ?? "?"}-${eiendom.gnr}/${eiendom.bnr}`
+        },
+        reguleringsplan: plan ? planSammendrag(plan) : null,
+        planmerknad: plan
+          ? null
+          : "Eiendommen har ingen registrert reguleringsplan i planregisteret. Kommuneplanens arealdel gjelder.",
+        naboer,
+        // Adressene for seg: et visningssteg skal kunne lese naboene som tekst
+        // uten å måtte pakke ut objektene.
+        naboadresser: naboer.map((nabo) => nabo.adresse),
+        antallNaboer: naboer.length,
+        nabolistegrunnlag: eiendom.adressenavn
+          ? `Andre eiendommer i ${eiendom.adressenavn}. En fullstendig naboliste bygger på geometri, ikke gatenavn.`
+          : "Fant ingen gate å hente naboer fra.",
         syntetisk: true
       };
     }

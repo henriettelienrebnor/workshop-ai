@@ -18,6 +18,8 @@ type AgentSvar = {
   replies?: string[];
   /** Bilder stegene ba om å få vist, for eksempel en QR-kode som skal skannes. */
   bilder?: Stegbilde[];
+  /** Opplysninger stegene ba om å få vist, for eksempel saksgrunnlaget. */
+  visninger?: Stegvisning[];
   grunnlag?: Grunnlag;
   awaiting?: string | null;
   selectedProcess?: { navn?: string };
@@ -133,6 +135,10 @@ async function sendMessage(): Promise<void> {
 
     for (const bilde of data.bilder || []) {
       addBildeMelding(bilde);
+    }
+
+    for (const visning of data.visninger || []) {
+      addVisningsmelding(visning);
     }
 
     if (data.grunnlag) {

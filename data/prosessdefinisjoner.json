@@ -745,19 +745,94 @@
             "method": "GET",
             "url": "https://verifier-service.test.eidas2sandkasse.net/api/v1/ks-hackathon/verify/result/{resultat.start-verifisering.verifier_transaction_id}"
           },
+          "hentUt": {
+            "eiendomsadresse": "credentials.net-eidas2sandkasse-eiendomsbevis_sd_jwt_vc-0f85956d-610a-4e44-be31-0496c187a482.0.claims.eiendomsadresse",
+            "fornavn": "credentials.no-digdir-eudiw-pid_sd_jwt_vc-0c350e48-ff3f-4251-abbd-bea10c45cf4a.0.claims.given_name",
+            "etternavn": "credentials.no-digdir-eudiw-pid_sd_jwt_vc-0c350e48-ff3f-4251-abbd-bea10c45cf4a.0.claims.family_name",
+            "fodselsdato": "credentials.no-digdir-eudiw-pid_sd_jwt_vc-0c350e48-ff3f-4251-abbd-bea10c45cf4a.0.claims.birthdate",
+            "personnummer": "credentials.no-digdir-eudiw-pid_sd_jwt_vc-0c350e48-ff3f-4251-abbd-bea10c45cf4a.0.claims.personal_administrative_number",
+            "utstederland": "credentials.no-digdir-eudiw-pid_sd_jwt_vc-0c350e48-ff3f-4251-abbd-bea10c45cf4a.0.claims.issuing_country"
+          },
           "forfatterhjelp": {
-            "hensikt": "Resultatet nøkles på de samme id-ene som ble sendt i dcql_query, og hver id gir en liste med verifiserte bevis.",
-            "skrivetips": "Kall dette steget først når status er AVAILABLE."
+            "hensikt": "Resultatet nøkles på de samme id-ene som ble sendt i dcql_query, og hver id gir en liste med verifiserte bevis. hentUt løfter feltene vi trenger opp på resultatet, så neste steg kan skrive {resultat.hent-resultat.eiendomsadresse}.",
+            "skrivetips": "Endrer beviset form, er det stiene i hentUt som skal rettes - ikke URL-ene i stegene etter."
           }
         },
         {
-          "id": "bekreft-eiendom",
-          "type": "INFO",
-          "tittel": "Eiendommen søknaden gjelder",
-          "tekst": "Vi bruker eiendommen fra eiendomsbeviset du delte. Gjelder søknaden en annen eiendom, må du starte på nytt og dele beviset for den.",
+          "id": "hent-saksgrunnlag",
+          "type": "DATA_FETCH",
+          "tittel": "Slår opp eiendommen, planen og naboene",
+          "api": {
+            "method": "GET",
+            "url": "/api/eiendom/saksgrunnlag?adresse={resultat.hent-resultat.eiendomsadresse}"
+          },
           "forfatterhjelp": {
-            "hensikt": "PLACEHOLDER. Skal vise eiendomsadressen fra hent-resultat, ikke bare si at den finnes.",
-            "skrivetips": "Adressen ligger under credentials[eiendomsbevis-id][0], og hentes fram på samme måte som QR-koden: {resultat.hent-resultat.<felt>}."
+            "hensikt": "Adressen fra eiendomsbeviset slås opp i matrikkelen, matrikkel-id-en finner reguleringsplanen i data/reguleringsplan.json, og gaten gir nabolisten.",
+            "skrivetips": "Ressursen ligger i apps/sandbox-backend/src/ressurser.ts. Legg til flere felter der framfor å lage et nytt steg."
+          }
+        },
+        {
+          "id": "vis-saksgrunnlag",
+          "type": "INFO",
+          "tittel": "Dette vet vi om eiendommen",
+          "tekst": "Se over opplysningene før du beskriver tiltaket. Er noe feil, må det rettes i registrene før du søker.",
+          "visning": {
+            "tittel": "Saksgrunnlag",
+            "punkter": [
+              {
+                "etikett": "Søker",
+                "verdi": "{resultat.hent-resultat.fornavn} {resultat.hent-resultat.etternavn}"
+              },
+              {
+                "etikett": "Adresse",
+                "verdi": "{resultat.hent-saksgrunnlag.eiendom.adresse}"
+              },
+              {
+                "etikett": "Matrikkelnummer",
+                "verdi": "{resultat.hent-saksgrunnlag.eiendom.matrikkelnummer}"
+              },
+              {
+                "etikett": "Kommune",
+                "verdi": "{resultat.hent-saksgrunnlag.eiendom.kommune}"
+              },
+              {
+                "etikett": "Reguleringsplan",
+                "verdi": "{resultat.hent-saksgrunnlag.reguleringsplan.planNavn}"
+              },
+              {
+                "etikett": "Plan-ID og status",
+                "verdi": "{resultat.hent-saksgrunnlag.reguleringsplan.planId} · {resultat.hent-saksgrunnlag.reguleringsplan.plantype} · {resultat.hent-saksgrunnlag.reguleringsplan.planstatus}"
+              },
+              {
+                "etikett": "Arealformål",
+                "verdi": "{resultat.hent-saksgrunnlag.reguleringsplan.formaal}"
+              },
+              {
+                "etikett": "Hensynssoner",
+                "verdi": "{resultat.hent-saksgrunnlag.reguleringsplan.hensynssoner}"
+              },
+              {
+                "etikett": "Bestemmelser",
+                "verdi": "{resultat.hent-saksgrunnlag.reguleringsplan.bestemmelser}"
+              },
+              {
+                "etikett": "Uten plan",
+                "verdi": "{resultat.hent-saksgrunnlag.planmerknad}"
+              },
+              {
+                "etikett": "Naboer som skal varsles",
+                "verdi": "{resultat.hent-saksgrunnlag.naboadresser}"
+              },
+              {
+                "etikett": "Om nabolisten",
+                "verdi": "{resultat.hent-saksgrunnlag.nabolistegrunnlag}"
+              }
+            ]
+          },
+          "venterPaaBruker": true,
+          "forfatterhjelp": {
+            "hensikt": "Punkter som ikke lar seg slå opp faller bort. Derfor kan både «Reguleringsplan» og «Uten plan» stå her: bare den som gjelder blir vist.",
+            "skrivetips": "Legg til flere punkter med {resultat.<stegId>.<sti>}. Lister blir én linje, objekter vises ikke."
           }
         },
         {
@@ -818,19 +893,10 @@
           }
         },
         {
-          "id": "naboliste",
-          "type": "INFO",
-          "tittel": "Naboer som skal varsles",
-          "tekst": "Naboer og gjenboere skal varsles før søknaden sendes inn. Denne listen hentes fra matrikkelen.",
-          "forfatterhjelp": {
-            "hensikt": "PLACEHOLDER. Skal bli et DATA_FETCH mot matrikkel-mock som slår opp naboeiendommene.",
-            "skrivetips": "Se ressurskatalogen i apps/sandbox-backend/src/ressurser.ts for hvordan et nytt oppslag legges til."
-          }
-        },
-        {
           "id": "nabovarsel",
           "type": "QUESTION",
           "tittel": "Har du varslet naboene?",
+          "tekst": "Naboene og gjenboerne i listen over skal varsles før søknaden sendes inn.",
           "felter": [
             {
               "id": "varslet",

@@ -35,6 +35,8 @@ type Agentsteg = {
   felter?: { id: string; label: string; type?: string }[];
   /** Bilde steget vil vise. `url` er slått opp av sandbox-backend. */
   bilde?: { kilde?: string; alt?: string; url?: string };
+  /** Opplysninger steget vil vise fram. `tekst` er slått opp av sandbox-backend. */
+  visning?: { tittel?: string; punkter?: { etikett: string; tekst?: string }[] };
   /** INFO-steg som ikke skal auto-passeres: innbygger må gjøre noe først. */
   venterPaaBruker?: boolean;
   [felt: string]: unknown;
@@ -148,6 +150,8 @@ type Agentsesjon = {
    * koden fra forrige melding dukket opp igjen.
    */
   pendingBilder: { alt?: string; url: string }[];
+  /** Saksgrunnlag og andre opplysninger stegene ba om å få vist i denne turen. */
+  pendingVisninger: NonNullable<Agentsteg["visning"]>[];
   history: Historikklinje[];
   pendingProcessCandidates: Prosessvalg[];
   latestSummary: string | null;
@@ -1259,6 +1263,9 @@ async function advanceAndPrompt(state: Agentsesjon): Promise<string[]> {
       if (bilde?.url) {
         state.pendingBilder.push({ alt: bilde.alt, url: bilde.url });
       }
+      if (step.visning?.punkter?.length) {
+        state.pendingVisninger.push(step.visning);
+      }
       /*
        * Et INFO-steg passeres normalt uten at innbygger gjør noe. Ikke dette:
        * her står det en QR-kode som skal skannes, og neste steg venter på at
@@ -1881,6 +1888,7 @@ async function createAgentSession(body: { personId?: string }) {
     awaitingValideringTools: [],
     lastSession: null,
     pendingBilder: [],
+    pendingVisninger: [],
     history: [],
     pendingProcessCandidates: [],
     latestSummary: null,
@@ -1975,6 +1983,7 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
       session.history.push({ role: "user", message: userMessage, tidspunkt: new Date().toISOString() });
 
       session.pendingBilder = [];
+      session.pendingVisninger = [];
       const replies = await handleMessage(session, userMessage);
       for (const message of replies) {
         session.history.push({ role: "assistant", message, tidspunkt: new Date().toISOString() });
@@ -1985,6 +1994,7 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
         sessionId: session.sessionId,
         replies,
         bilder: session.pendingBilder,
+        visninger: session.pendingVisninger,
         awaiting: session.awaiting,
         selectedProcess: session.selectedProcess,
         pendingProcessCandidates: session.pendingProcessCandidates,

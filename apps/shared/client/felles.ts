@@ -60,6 +60,12 @@ type Stegbilde = {
   url?: string;
 };
 
+/** Opplysninger et steg viser fram. `tekst` er slått opp av sandbox-backend. */
+type Stegvisning = {
+  tittel?: string;
+  punkter?: { etikett: string; verdi?: string; tekst?: string }[];
+};
+
 type ProsessSteg = {
   id: string;
   type: string;
@@ -73,6 +79,8 @@ type ProsessSteg = {
   dataKilder?: string[];
   /** Et bilde steget vil vise, for eksempel en QR-kode et tidligere steg hentet. */
   bilde?: Stegbilde;
+  /** Opplysninger steget vil vise fram, for eksempel et saksgrunnlag. */
+  visning?: Stegvisning;
 };
 
 /** En pågående kjøring av en prosess. Se Prosessoekt i sandbox-backend/types.ts. */
@@ -202,6 +210,50 @@ function addBildeMelding(bilde: Stegbilde | undefined | null, rolle = "assistant
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   bubble.appendChild(bildeEl);
+  row.appendChild(bubble);
+  chatTarget.appendChild(row);
+  chatTarget.scrollTop = chatTarget.scrollHeight;
+  return true;
+}
+
+/*
+ * Opplysningene et steg viser fram - saksgrunnlaget i byggesøknaden er det som
+ * finnes i dag. Bygget som noder og ikke som markup: verdiene kommer fra
+ * eksterne registre, og et saksgrunnlag skal ikke kunne skrive HTML inn i siden.
+ */
+function lagVisning(visning: Stegvisning | undefined | null): HTMLElement | null {
+  const punkter = (visning?.punkter || []).filter((punkt) => punkt.tekst);
+  if (punkter.length === 0) return null;
+
+  const boks = document.createElement("div");
+  boks.className = "stegvisning";
+  if (visning?.tittel) {
+    const tittel = document.createElement("h3");
+    tittel.textContent = visning.tittel;
+    boks.appendChild(tittel);
+  }
+  const liste = document.createElement("dl");
+  for (const punkt of punkter) {
+    const etikett = document.createElement("dt");
+    etikett.textContent = punkt.etikett;
+    const verdi = document.createElement("dd");
+    verdi.textContent = punkt.tekst!;
+    liste.appendChild(etikett);
+    liste.appendChild(verdi);
+  }
+  boks.appendChild(liste);
+  return boks;
+}
+
+/** Visningen som en egen boble i chatten. Returnerer false når den var tom. */
+function addVisningsmelding(visning: Stegvisning | undefined | null, rolle = "assistant"): boolean {
+  const boks = lagVisning(visning);
+  if (!chatTarget || !boks) return false;
+  const row = document.createElement("div");
+  row.className = `msg ${rolle}`;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.appendChild(boks);
   row.appendChild(bubble);
   chatTarget.appendChild(row);
   chatTarget.scrollTop = chatTarget.scrollHeight;

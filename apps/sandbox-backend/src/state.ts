@@ -139,7 +139,8 @@ export const SEED_DATASETS = [
   { id: "satser", file: "satser.json" },
   { id: "fritidsdeltakelse", file: "fritidsdeltakelse.json" },
   { id: "fritidsaktiviteter", file: "fritidsaktiviteter.json" },
-  { id: "tjenestetilbud", file: "tjenestetilbud.json" }
+  { id: "tjenestetilbud", file: "tjenestetilbud.json" },
+  { id: "reguleringsplan", file: "reguleringsplan.json" }
 ] as const;
 
 // Annotated rather than inferred, so the assembler and the type cannot drift:
@@ -161,7 +162,8 @@ export async function readState(): Promise<State> {
     sfoplasser,
     fritidsdeltakelse,
     fritidsaktiviteter,
-    tjenestetilbud
+    tjenestetilbud,
+    reguleringsplan
   ] = await Promise.all([
     readJson("personer.json"),
     readJson("husstander.json"),
@@ -177,7 +179,8 @@ export async function readState(): Promise<State> {
     readJson("sfoplasser.json"),
     readJson("fritidsdeltakelse.json"),
     readJson("fritidsaktiviteter.json"),
-    readJson("tjenestetilbud.json")
+    readJson("tjenestetilbud.json"),
+    readJson("reguleringsplan.json")
   ]);
 
   const prosesskatalog = parseProsessDefinisjoner(prosesser);
@@ -205,7 +208,8 @@ export async function readState(): Promise<State> {
     sfoplasser,
     fritidsdeltakelse,
     fritidsaktiviteter,
-    tjenestetilbud
+    tjenestetilbud,
+    reguleringsplan
   };
 }
 

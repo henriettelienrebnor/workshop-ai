@@ -227,10 +227,12 @@ function renderAktivtSteg(): void {
   }
 
   aktivtStegEl.innerHTML = innhold;
-  // Etter innerHTML: bildet settes inn som node, ikke som streng i markupen, så
-  // en data-URL aldri kan bryte ut av attributtet.
+  // Etter innerHTML: bilde og visning settes inn som noder, ikke som streng i
+  // markupen, så verdier fra eksterne registre aldri kan bryte ut.
   const bildeEl = lagBilde(steg.bilde);
   if (bildeEl) krevEl("stegbilde").appendChild(bildeEl);
+  const visningEl = lagVisning(steg.visning);
+  if (visningEl) krevEl("stegbilde").appendChild(visningEl);
   wireStegHandlinger(steg);
 }
 
