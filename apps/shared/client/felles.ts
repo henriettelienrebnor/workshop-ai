@@ -188,11 +188,17 @@ function addMsg(role: string, text: string): HTMLDivElement | null {
  * injeksjonsflate uansett hvor verdien kom fra.
  */
 function erVisbartBilde(url: unknown): url is string {
-  return typeof url === "string"
-    && /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(url);
+  return (
+    typeof url === "string" &&
+    /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(
+      url,
+    )
+  );
 }
 
-function lagBilde(bilde: Stegbilde | undefined | null): HTMLImageElement | null {
+function lagBilde(
+  bilde: Stegbilde | undefined | null,
+): HTMLImageElement | null {
   if (!bilde || !erVisbartBilde(bilde.url)) return null;
   const bildeEl = document.createElement("img");
   bildeEl.className = "stegbilde";
@@ -202,7 +208,10 @@ function lagBilde(bilde: Stegbilde | undefined | null): HTMLImageElement | null 
 }
 
 /** Bildet som en egen boble i chatten. Returnerer false når det ikke fantes. */
-function addBildeMelding(bilde: Stegbilde | undefined | null, rolle = "assistant"): boolean {
+function addBildeMelding(
+  bilde: Stegbilde | undefined | null,
+  rolle = "assistant",
+): boolean {
   const bildeEl = lagBilde(bilde);
   if (!chatTarget || !bildeEl) return false;
   const row = document.createElement("div");
@@ -221,7 +230,9 @@ function addBildeMelding(bilde: Stegbilde | undefined | null, rolle = "assistant
  * finnes i dag. Bygget som noder og ikke som markup: verdiene kommer fra
  * eksterne registre, og et saksgrunnlag skal ikke kunne skrive HTML inn i siden.
  */
-function lagVisning(visning: Stegvisning | undefined | null): HTMLElement | null {
+function lagVisning(
+  visning: Stegvisning | undefined | null,
+): HTMLElement | null {
   const punkter = (visning?.punkter || []).filter((punkt) => punkt.tekst);
   if (punkter.length === 0) return null;
 
@@ -246,7 +257,10 @@ function lagVisning(visning: Stegvisning | undefined | null): HTMLElement | null
 }
 
 /** Visningen som en egen boble i chatten. Returnerer false når den var tom. */
-function addVisningsmelding(visning: Stegvisning | undefined | null, rolle = "assistant"): boolean {
+function addVisningsmelding(
+  visning: Stegvisning | undefined | null,
+  rolle = "assistant",
+): boolean {
   const boks = lagVisning(visning);
   if (!chatTarget || !boks) return false;
   const row = document.createElement("div");
@@ -325,7 +339,8 @@ const PAGES = [
   { sti: "/chat", tekst: "Chat" },
   { sti: "/agent", tekst: "AI-agent" },
   { sti: "/stegvis", tekst: "Stegvis" },
-  { sti: "/utforsker", tekst: "API-utforsker" }
+  { sti: "/utforsker", tekst: "API-utforsker" },
+  { sti: "/bygg", tekst: "Byggesøknad" },
 ];
 
 /**
@@ -363,7 +378,10 @@ function renderTopNav(activePath: string): void {
 
 type ModellValg = { konsekvens?: string; elementId?: string };
 
-function showModellBanner(tekst: string | null, elementId = "modellBanner"): void {
+function showModellBanner(
+  tekst: string | null,
+  elementId = "modellBanner",
+): void {
   const element = document.getElementById(elementId);
   if (!element) return;
   if (!tekst) {
@@ -375,8 +393,12 @@ function showModellBanner(tekst: string | null, elementId = "modellBanner"): voi
   element.textContent = tekst;
 }
 
-async function checkModell(aiBase: string, valg: ModellValg = {}): Promise<ModellHelse | null> {
-  const konsekvens = valg.konsekvens || "Svarene under kommer fra maler, ikke fra en modell.";
+async function checkModell(
+  aiBase: string,
+  valg: ModellValg = {},
+): Promise<ModellHelse | null> {
+  const konsekvens =
+    valg.konsekvens || "Svarene under kommer fra maler, ikke fra en modell.";
   try {
     const res = await fetch(`${aiBase}/helse`);
     const data = await res.json();
@@ -386,11 +408,14 @@ async function checkModell(aiBase: string, valg: ModellValg = {}): Promise<Model
     }
     showModellBanner(
       `⚠️ Modellen er ikke koblet på (${data.modell || data.provider}). ${konsekvens} ${data.feil || ""}`.trim(),
-      valg.elementId
+      valg.elementId,
     );
     return data;
   } catch {
-    showModellBanner(`⚠️ Får ikke kontakt med ai-gateway. ${konsekvens}`, valg.elementId);
+    showModellBanner(
+      `⚠️ Får ikke kontakt med ai-gateway. ${konsekvens}`,
+      valg.elementId,
+    );
     return null;
   }
 }
@@ -400,7 +425,9 @@ async function checkModell(aiBase: string, valg: ModellValg = {}): Promise<Model
  * so advarsel is surfaced where it happens too. Kept quiet by default: a
  * warning shown on every turn teaches the user to ignore it.
  */
-function warnAboutFallback(result: { advarsel?: unknown } | null | undefined): void {
+function warnAboutFallback(
+  result: { advarsel?: unknown } | null | undefined,
+): void {
   if (result && typeof result.advarsel === "string" && result.advarsel.trim()) {
     addMsg("system", `⚠️ ${result.advarsel}`);
   }
@@ -439,12 +466,16 @@ const VERIFIER_KEY = "sandkasse-pkce-verifier";
 const STANDARD_AUDIENCE = "sandbox-backend";
 
 function tokenKey(audience = STANDARD_AUDIENCE): string {
-  return audience === STANDARD_AUDIENCE ? TOKEN_KEY : `${TOKEN_KEY}:${audience}`;
+  return audience === STANDARD_AUDIENCE
+    ? TOKEN_KEY
+    : `${TOKEN_KEY}:${audience}`;
 }
 
 function base64url(bytes: ArrayBuffer | Uint8Array): string {
   return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-    .replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
 }
 
 function storedToken(audience?: string): string | null {
@@ -469,7 +500,9 @@ function tokenClaims(audience?: string): TokenKrav | null {
 function claimsValid(krav: TokenKrav | null): boolean {
   // Treat a token expiring within 30 s as already gone, so a flow does not die
   // halfway through on an expiry it could have seen coming.
-  return Boolean(krav && krav.exp && krav.exp - 30 > Math.floor(Date.now() / 1000));
+  return Boolean(
+    krav && krav.exp && krav.exp - 30 > Math.floor(Date.now() / 1000),
+  );
 }
 
 function tokenValid(audience?: string): boolean {
@@ -481,7 +514,10 @@ function loggedInPid(audience?: string): string | null {
 }
 
 /** Headers for a call to the backend. Spread into an existing headers object. */
-function withToken(ekstra: Record<string, string> = {}, audience?: string): Record<string, string> {
+function withToken(
+  ekstra: Record<string, string> = {},
+  audience?: string,
+): Record<string, string> {
   const token = storedToken(audience);
   return { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...ekstra };
 }
@@ -513,7 +549,7 @@ async function requireLogin(valg: LoginValg = {}): Promise<boolean> {
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
   sessionStorage.setItem(VERIFIER_KEY, verifier);
   const challenge = base64url(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
   );
 
   const parametere = new URLSearchParams({
@@ -527,7 +563,7 @@ async function requireLogin(valg: LoginValg = {}): Promise<boolean> {
     // state carries where to return to, so a deep link survives the round trip.
     state: location.pathname + location.search,
     code_challenge: challenge,
-    code_challenge_method: "S256"
+    code_challenge_method: "S256",
   });
   location.assign(`${IDPORTEN_BASE}/idporten/authorize?${parametere}`);
   return false;
@@ -538,12 +574,15 @@ async function completeLogin(): Promise<string> {
   const parametere = new URLSearchParams(location.search);
   const feil = parametere.get("error");
   if (feil) {
-    throw new Error(`${feil}: ${parametere.get("error_description") || "ingen forklaring"}`);
+    throw new Error(
+      `${feil}: ${parametere.get("error_description") || "ingen forklaring"}`,
+    );
   }
   const code = parametere.get("code");
   const verifier = sessionStorage.getItem(VERIFIER_KEY);
   if (!code) throw new Error("ID-porten sendte ingen code back.");
-  if (!verifier) throw new Error("Fant ingen PKCE-verifier. Start innloggingen på nytt.");
+  if (!verifier)
+    throw new Error("Fant ingen PKCE-verifier. Start innloggingen på nytt.");
 
   const svar = await fetch(`${IDPORTEN_BASE}/idporten/token`, {
     method: "POST",
@@ -553,16 +592,21 @@ async function completeLogin(): Promise<string> {
       code,
       client_id: "demo-gui",
       redirect_uri: `${location.origin}/callback`,
-      code_verifier: verifier
-    })
+      code_verifier: verifier,
+    }),
   });
   const data = await svar.json();
   if (!svar.ok) {
-    throw new Error(data.error_description || data.error || `status ${svar.status}`);
+    throw new Error(
+      data.error_description || data.error || `status ${svar.status}`,
+    );
   }
   // Lagres på tokenets egen aud, ikke på den vi trodde vi ba om. Utstederen er
   // fasiten, og da kan ingen audience-forveksling gjemme seg her.
-  sessionStorage.setItem(tokenKey(claimsIn(data.access_token)?.aud), data.access_token);
+  sessionStorage.setItem(
+    tokenKey(claimsIn(data.access_token)?.aud),
+    data.access_token,
+  );
   sessionStorage.removeItem(VERIFIER_KEY);
   return parametere.get("state") || "/";
 }
@@ -592,17 +636,20 @@ function switchUser(): void {
  * each page because this is the one place that knows the selector has stopped being
  * a choice - and a disabled dropdown with no way out is a dead end.
  */
-function showLoggedInPerson(velgerElement: HTMLSelectElement, personer: Person[]): Person {
+function showLoggedInPerson(
+  velgerElement: HTMLSelectElement,
+  personer: Person[],
+): Person {
   const pid = loggedInPid();
   const meg = personer.find((person) => person.syntetiskFodselsnummer === pid);
   if (!meg) {
-    throw new Error(`Innlogget som ${pid}, men fant ingen slik person i datasettet.`);
+    throw new Error(
+      `Innlogget som ${pid}, men fant ingen slik person i datasettet.`,
+    );
   }
-  velgerElement.innerHTML =
-    `<option value="${htmlEscape(meg.personId)}">${htmlEscape(meg.visningsnavn)}</option>`;
+  velgerElement.innerHTML = `<option value="${htmlEscape(meg.personId)}">${htmlEscape(meg.visningsnavn)}</option>`;
   velgerElement.disabled = true;
-  velgerElement.title =
-    `Innlogget via ID-porten som ${meg.visningsnavn} (${pid}). Bruk «bytt bruker» for å endre.`;
+  velgerElement.title = `Innlogget via ID-porten som ${meg.visningsnavn} (${pid}). Bruk «bytt bruker» for å endre.`;
 
   // Idempotent: renderStep and friends may call this more than once per page load.
   if (!velgerElement.parentNode?.querySelector(".switchUser")) {
@@ -610,7 +657,8 @@ function showLoggedInPerson(velgerElement: HTMLSelectElement, personer: Person[]
     bytt.className = "switchUser";
     bytt.href = "#";
     bytt.textContent = "logg ut / bytt bruker";
-    bytt.style.cssText = "display:inline-block; margin-top:.35rem; font-size:.85rem;";
+    bytt.style.cssText =
+      "display:inline-block; margin-top:.35rem; font-size:.85rem;";
     bytt.onclick = (hendelse) => {
       hendelse.preventDefault();
       switchUser();
