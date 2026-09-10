@@ -581,6 +581,187 @@
         }
       ],
       "syntetisk": true
+    },
+    {
+      "id": "eudi-eiendomsbevis-verifisering",
+      "navn": "Verifisering av eiendomsbevis og PID fra lommebok",
+      "beskrivelse": "Henter eiendomsbevis og person-ID (PID) fra innbyggerens EUDI-lommebok via verifier-tjenesten i eIDAS2-sandkassen.",
+      "versjon": "0.1.0",
+      "redigering": {
+        "status": "publisert",
+        "eier": "Plan og bygg"
+      },
+      "eksterntApi": {
+        "navn": "eIDAS2 verifier-service (test)",
+        "baseUrl": "https://verifier-service.test.eidas2sandkasse.net",
+        "clientApplicationId": "ks-hackathon",
+        "dokumentasjon": "https://verifier-service.test.eidas2sandkasse.net/swagger-ui/index.html"
+      },
+      "steg": [
+        {
+          "id": "intro",
+          "type": "INFO",
+          "tittel": "Del bevis fra lommeboken din",
+          "tekst": "Du skal dele eiendomsbeviset ditt og person-ID-en din fra EUDI-lommeboken. Du får en QR-kode du skanner med lommeboken.",
+          "forfatterhjelp": {
+            "hensikt": "Forklar at innbyggeren selv godkjenner delingen i lommeboken.",
+            "skrivetips": "Nevn hvilke opplysninger som blir delt før QR-koden vises."
+          }
+        },
+        {
+          "id": "start-verifisering",
+          "type": "DATA_FETCH",
+          "tittel": "Starter forespørsel mot lommeboken",
+          "api": {
+            "method": "POST",
+            "url": "https://verifier-service.test.eidas2sandkasse.net/api/v1/ks-hackathon/verify/start/?include_validation_details=false",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "dcql_query": {
+                "credentials": [
+                  {
+                    "id": "net-eidas2sandkasse-eiendomsbevis_sd_jwt_vc-0f85956d-610a-4e44-be31-0496c187a482",
+                    "format": "dc+sd-jwt",
+                    "meta": {
+                      "vct_values": [
+                        "net.eidas2sandkasse:eiendomsbevis"
+                      ]
+                    },
+                    "claims": [
+                      {
+                        "path": [
+                          "eiendomsadresse"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "id": "no-digdir-eudiw-pid_sd_jwt_vc-0c350e48-ff3f-4251-abbd-bea10c45cf4a",
+                    "format": "dc+sd-jwt",
+                    "meta": {
+                      "vct_values": [
+                        "urn:eudi:pid:1"
+                      ]
+                    },
+                    "claims": [
+                      {
+                        "path": [
+                          "personal_administrative_number"
+                        ]
+                      },
+                      {
+                        "path": [
+                          "given_name"
+                        ]
+                      },
+                      {
+                        "path": [
+                          "family_name"
+                        ]
+                      },
+                      {
+                        "path": [
+                          "birthdate"
+                        ]
+                      },
+                      {
+                        "path": [
+                          "place_of_birth"
+                        ]
+                      },
+                      {
+                        "path": [
+                          "nationalities"
+                        ]
+                      },
+                      {
+                        "path": [
+                          "expiry_date"
+                        ]
+                      },
+                      {
+                        "path": [
+                          "issuing_authority"
+                        ]
+                      },
+                      {
+                        "path": [
+                          "issuing_country"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "forfatterhjelp": {
+            "hensikt": "DCQL-spørringen ber om to bevis: eiendomsbevis og PID. Svaret gir authorization_request_qr_code og verifier_transaction_id, som de neste stegene viser til med {resultat.start-verifisering.<felt>}.",
+            "skrivetips": "Legg til flere bevis ved å utvide dcql_query.credentials."
+          }
+        },
+        {
+          "id": "vis-qr",
+          "type": "INFO",
+          "tittel": "Skann QR-koden med lommeboken",
+          "tekst": "Åpne EUDI-lommeboken og skann QR-koden. Godkjenn delingen av eiendomsbevis og person-ID.",
+          "bilde": {
+            "kilde": "{resultat.start-verifisering.authorization_request_qr_code}",
+            "alt": "QR-kode du skanner med EUDI-lommeboken"
+          },
+          "venterPaaBruker": true,
+          "forfatterhjelp": {
+            "hensikt": "authorization_request_qr_code er en data:image/png;base64-streng. Sandbox-backend slår opp kilden og legger den ferdige URL-en på aktivtSteg.bilde.url, som stegvis, chat og agenten tegner.",
+            "skrivetips": "venterPaaBruker gjør at agenten stopper her i stedet for å gå rett videre til statussteget."
+          }
+        },
+        {
+          "id": "sjekk-status",
+          "type": "DATA_FETCH",
+          "tittel": "Venter på svar fra lommeboken",
+          "api": {
+            "method": "GET",
+            "url": "https://verifier-service.test.eidas2sandkasse.net/api/v1/ks-hackathon/verify/status/{resultat.start-verifisering.verifier_transaction_id}"
+          },
+          "polling": {
+            "felt": "status",
+            "verdi": "AVAILABLE",
+            "intervallMs": 2000,
+            "maksForsok": 30,
+            "tidsavbruddMelding": "Vi fikk ikke svar fra lommeboken i tide. Prøv å starte delingen på nytt."
+          },
+          "forfatterhjelp": {
+            "hensikt": "Statusen er WAIT til innbyggeren har godkjent, AVAILABLE når beviset kan hentes, UNKNOWN hvis transaksjonen ikke finnes.",
+            "skrivetips": "Ikke poll oftere enn hvert par sekund - innbyggeren trenger tid i lommeboken."
+          }
+        },
+        {
+          "id": "hent-resultat",
+          "type": "DATA_FETCH",
+          "tittel": "Henter de delte opplysningene",
+          "api": {
+            "method": "GET",
+            "url": "https://verifier-service.test.eidas2sandkasse.net/api/v1/ks-hackathon/verify/result/{resultat.start-verifisering.verifier_transaction_id}"
+          },
+          "forfatterhjelp": {
+            "hensikt": "Resultatet nøkles på de samme id-ene som ble sendt i dcql_query, og hver id gir en liste med verifiserte bevis.",
+            "skrivetips": "Kall dette steget først når status er AVAILABLE."
+          }
+        },
+        {
+          "id": "oppsummering",
+          "type": "SUMMARY",
+          "tittel": "Oppsummering av delte opplysninger"
+        },
+        {
+          "id": "send-inn",
+          "type": "SUBMIT",
+          "tittel": "Bekreft og send inn"
+        }
+      ],
+      "syntetisk": true
     }
   ],
   "maler": [

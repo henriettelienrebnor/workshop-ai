@@ -89,6 +89,19 @@ export const pasientjournalToken = {
 // in real SvarUt this is the kommune's registered konto, handed out on onboarding.
 export const svarutKontoId = "6b1f0d2c-8a34-4d7e-9f51-0c8b2a6d4e13";
 
+// --- external APIs a process step may call --------------------------------
+//
+// A DATA_FETCH or SJEKK step with an absolute URL goes out to a real service
+// instead of the resource catalog. An allowlist rather than «https is enough»:
+// process definitions are edited during the workshop, and without this any one of
+// them could turn the engine into an open proxy against the internal network.
+export const eksterneApiVerter = (
+  process.env.EKSTERNE_API_VERTER || "verifier-service.test.eidas2sandkasse.net"
+)
+  .split(",")
+  .map((vert) => vert.trim().toLowerCase())
+  .filter(Boolean);
+
 export const maskinportenIssuer = digdirIssuer;
 export const idportenIssuer = `${digdirIssuer}/idporten`;
 

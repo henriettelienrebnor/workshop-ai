@@ -235,6 +235,17 @@ textarea.dark {
   color: var(--farge-feil-tekst);
 }
 
+/* Et bilde et steg viser - i praksis QR-koden som skal skannes med lommeboken. */
+.stegbilde {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  background: #fff;
+  border-radius: 8px;
+}
+
 /*
  * A guardrail that fires silently cannot be demonstrated, so it gets its own
  * look rather than passing as an ordinary assistant reply.

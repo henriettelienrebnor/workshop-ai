@@ -138,6 +138,7 @@ function renderAktivtSteg(): void {
     <div class="step-type">${htmlEscape(steg.type)}</div>
     <h2>${htmlEscape(steg.tittel)}</h2>
     ${steg.tekst ? `<p>${htmlEscape(steg.tekst)}</p>` : ""}
+    <div id="stegbilde"></div>
   `;
 
   if (steg.type === "QUESTION") {
@@ -226,6 +227,10 @@ function renderAktivtSteg(): void {
   }
 
   aktivtStegEl.innerHTML = innhold;
+  // Etter innerHTML: bildet settes inn som node, ikke som streng i markupen, så
+  // en data-URL aldri kan bryte ut av attributtet.
+  const bildeEl = lagBilde(steg.bilde);
+  if (bildeEl) krevEl("stegbilde").appendChild(bildeEl);
   wireStegHandlinger(steg);
 }
 

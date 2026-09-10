@@ -892,6 +892,7 @@ async function renderStep(): Promise<void> {
   }
 
   addMsg("assistant", promptForStep(steg));
+  addBildeMelding(steg.bilde);
   renderQuickActionsFor(steg);
 
   if (steg.type === "DATA_FETCH") {

@@ -52,6 +52,14 @@ type SpoersmaalsFelt = {
   placeholder?: string;
 };
 
+type Stegbilde = {
+  /** Malen forfatteren skrev. Klienten trenger den ikke - den leser `url`. */
+  kilde?: string;
+  alt?: string;
+  /** Slått opp av sandbox-backend. Mangler den, er det ingenting å tegne. */
+  url?: string;
+};
+
 type ProsessSteg = {
   id: string;
   type: string;
@@ -63,6 +71,8 @@ type ProsessSteg = {
   /** Bare på CONSENT_REQUEST. */
   formaal?: string;
   dataKilder?: string[];
+  /** Et bilde steget vil vise, for eksempel en QR-kode et tidligere steg hentet. */
+  bilde?: Stegbilde;
 };
 
 /** En pågående kjøring av en prosess. Se Prosessoekt i sandbox-backend/types.ts. */
@@ -159,6 +169,43 @@ function addMsg(role: string, text: string): HTMLDivElement | null {
   chatTarget.appendChild(row);
   chatTarget.scrollTop = chatTarget.scrollHeight;
   return row;
+}
+
+/*
+ * Bilder fra et steg - i praksis QR-koden innbyggeren skal skanne med
+ * lommeboken.
+ *
+ * data:-URL-en er allerede sjekket i sandbox-backend, og sjekkes igjen her:
+ * denne funksjonen setter en src, og en src som kan være hva som helst er en
+ * injeksjonsflate uansett hvor verdien kom fra.
+ */
+function erVisbartBilde(url: unknown): url is string {
+  return typeof url === "string"
+    && /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(url);
+}
+
+function lagBilde(bilde: Stegbilde | undefined | null): HTMLImageElement | null {
+  if (!bilde || !erVisbartBilde(bilde.url)) return null;
+  const bildeEl = document.createElement("img");
+  bildeEl.className = "stegbilde";
+  bildeEl.src = bilde.url;
+  bildeEl.alt = bilde.alt || "Bilde fra steget";
+  return bildeEl;
+}
+
+/** Bildet som en egen boble i chatten. Returnerer false når det ikke fantes. */
+function addBildeMelding(bilde: Stegbilde | undefined | null, rolle = "assistant"): boolean {
+  const bildeEl = lagBilde(bilde);
+  if (!chatTarget || !bildeEl) return false;
+  const row = document.createElement("div");
+  row.className = `msg ${rolle}`;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.appendChild(bildeEl);
+  row.appendChild(bubble);
+  chatTarget.appendChild(row);
+  chatTarget.scrollTop = chatTarget.scrollHeight;
+  return true;
 }
 
 function addTyping(tekst = "Tenker…"): void {

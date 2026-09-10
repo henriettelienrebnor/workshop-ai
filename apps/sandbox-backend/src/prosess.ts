@@ -1,6 +1,6 @@
 import { maskinportenHeader } from "../../digdir-mock/src/client.ts";
 import { aktorFor, type Caller } from "./autentisering.ts";
-import { aiBaseUrl, fiksBaseUrl, fiksDialogToken } from "./config.ts";
+import { aiBaseUrl, eksterneApiVerter, fiksBaseUrl, fiksDialogToken } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { runRessurs } from "./ressurser.ts";
 import { addRevisjon } from "./revisjon.ts";
@@ -22,6 +22,13 @@ import type {
 function replaceParametere(url: string, oekt: Prosessoekt) {
   let result = url;
   result = result.replace(/{personId}/g, encodeURIComponent(oekt.personId));
+  // What an earlier step's response left behind: {resultat.<stegId>.<felt>}. A
+  // field that is not there yet stays unsubstituted, so the failing URL still
+  // names the placeholder that was never filled.
+  result = result.replace(/\{resultat\.([^.}]+)\.([^}]+)\}/g, (mal, stegId, felt) => {
+    const verdi = (oekt.resultater?.[stegId] as Record<string, unknown> | undefined)?.[felt];
+    return verdi === undefined || verdi === null ? mal : encodeURIComponent(String(verdi));
+  });
   for (const [stegId, svarVerdi] of Object.entries(oekt.svar || {})) {
     const enkeltMal = new RegExp(`\\{svar\\.${stegId}\\}`, "g");
     if (typeof svarVerdi === "string") {
@@ -52,24 +59,125 @@ function replaceParametere(url: string, oekt: Prosessoekt) {
   return result;
 }
 
+/*
+ * The image a step wants shown, resolved before the step leaves the service.
+ *
+ * `bilde.kilde` is either a data-URL written into the definition, or
+ * {resultat.<stegId>.<felt>} - a value an earlier step fetched, such as the QR
+ * code the verifier answers with. Resolving it here rather than in each client
+ * is what keeps stegvis, chat and the agent showing the same thing: they all
+ * read `aktivtSteg`, and three template resolvers would have drifted.
+ *
+ * Only base64 data-URLs for raster images pass. The value comes from an external
+ * response, and a client that renders whatever a step points at would be an
+ * injection surface - `javascript:` in an <img> src is the old version of it, and
+ * SVG is the current one.
+ */
+const BILDEMAL = /^\{resultat\.([^.}]+)\.([^}]+)\}$/;
+const BILDEDATA = /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+function medOppslaattBilde(steg: ProsessSteg, oekt: Prosessoekt): ProsessSteg {
+  const kilde = steg.bilde?.kilde;
+  if (typeof kilde !== "string") return steg;
+  const treff = BILDEMAL.exec(kilde);
+  const verdi = treff
+    ? (oekt.resultater?.[treff[1]] as Record<string, unknown> | undefined)?.[treff[2]]
+    : kilde;
+  if (typeof verdi !== "string" || !BILDEDATA.test(verdi)) return steg;
+  // Kopi: definisjonen i katalogen deles av alle økter og skal ikke bære
+  // resultatet fra én av dem.
+  return { ...steg, bilde: { ...steg.bilde!, url: verdi } };
+}
+
 export function buildProsessoektRespons(oekt: Prosessoekt, prosess: ProsessDefinisjon | null) {
+  const steg = prosess?.steg?.[oekt.stegIndex] || null;
   return {
     ...oekt,
-    aktivtSteg: prosess?.steg?.[oekt.stegIndex] || null,
+    aktivtSteg: steg ? medOppslaattBilde(steg, oekt) : null,
     totaltAntallSteg: prosess?.steg?.length || 0
   };
 }
 
 // DATA_FETCH and SJEKK consult the shared resource catalog through the same path
 // as the HTTP router, so consent gating and audit cannot diverge between them.
+// Unless the step names an absolute URL - then the data lives outside the
+// sandbox, and only the allowlist below can be reached.
 async function getFraKatalog(tilstand: State, oekt: Prosessoekt, steg: any, kaller: Caller) {
   const resolvedUrl = replaceParametere(steg.api.url, oekt);
+  if (/^https?:\/\//i.test(resolvedUrl)) {
+    return kallEksterntApi(resolvedUrl, oekt, steg, kaller);
+  }
   return runRessurs(tilstand, steg.api.method || "GET", new URL(`http://localhost${resolvedUrl}`), {
     oekt,
     steg,
     sporingsId: oekt.sporingsId,
     kaller
   });
+}
+
+const vent = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/*
+ * A step against a real, external API.
+ *
+ * The catalog cannot serve these: it answers from the synthetic datasets on disk,
+ * and a service like the eIDAS2 verifier holds state we do not have. So the
+ * engine calls it directly - but only over https, and only to a host on
+ * `eksterneApiVerter`. Without that check a process definition, which is data
+ * anyone at the workshop may edit, could point a step at an internal address and
+ * have the backend fetch it with its own network position (SSRF).
+ *
+ * `polling` exists because some of these calls are asynchronous by nature: the
+ * verifier answers WAIT until the citizen has approved the request in their
+ * wallet. The step waits for the terminal value rather than the client having to
+ * know to run it again.
+ */
+async function kallEksterntApi(resolvedUrl: string, oekt: Prosessoekt, steg: any, kaller: Caller) {
+  const url = new URL(resolvedUrl);
+  if (url.protocol !== "https:" || !eksterneApiVerter.includes(url.hostname.toLowerCase())) {
+    throw new HttpError(
+      `Steget «${steg.id}» peker på ${url.hostname}, som ikke er et tillatt eksternt API.`,
+      400,
+      { hint: "Legg verten til i EKSTERNE_API_VERTER hvis den skal kunne kalles.", syntetisk: true }
+    );
+  }
+
+  const method = (steg.api.method || "GET").toUpperCase();
+  const kall = { service: "Det eksterne API-et", action: `Å hente data i steget ${steg.id}` };
+  const send = () => callUpstream<any>(kall, () => fetch(url, {
+    method,
+    headers: {
+      ...(steg.api.body ? { "Content-Type": "application/json" } : {}),
+      ...(steg.api.headers || {})
+    },
+    ...(steg.api.body ? { body: JSON.stringify(steg.api.body) } : {}),
+    signal: AbortSignal.timeout(15000)
+  }));
+
+  await addRevisjon({
+    sporingsId: oekt.sporingsId,
+    handling: "EKSTERNT_API_KALL",
+    ressurs: `${url.hostname}${url.pathname}`,
+    aktor: aktorFor(kaller, oekt.personId)
+  });
+
+  const polling = steg.polling;
+  if (!polling) return send();
+
+  const maksForsok = polling.maksForsok || 30;
+  const intervallMs = polling.intervallMs || 2000;
+  let data: any = null;
+  for (let forsok = 0; forsok < maksForsok; forsok++) {
+    if (forsok > 0) await vent(intervallMs);
+    data = await send();
+    if (String(data?.[polling.felt]) === polling.verdi) return data;
+  }
+  throw new HttpError(
+    polling.tidsavbruddMelding ||
+      `${polling.felt} ble ikke ${polling.verdi} innen tidsfristen.`,
+    504,
+    { sisteSvar: data, syntetisk: true }
+  );
 }
 
 /*

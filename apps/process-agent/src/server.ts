@@ -33,6 +33,10 @@ type Agentsteg = {
   tittel?: string;
   tekst?: string;
   felter?: { id: string; label: string; type?: string }[];
+  /** Bilde steget vil vise. `url` er slått opp av sandbox-backend. */
+  bilde?: { kilde?: string; alt?: string; url?: string };
+  /** INFO-steg som ikke skal auto-passeres: innbygger må gjøre noe først. */
+  venterPaaBruker?: boolean;
   [felt: string]: unknown;
 };
 
@@ -138,6 +142,12 @@ type Agentsesjon = {
   awaitingStepId: string | null;
   awaitingValideringTools: string[];
   lastSession: Oektsvar | null;
+  /**
+   * Bilder stegene ba om å få vist i denne turen. Chatten svarer med tekst, så
+   * en QR-kode har ingen annen vei ut - og den må tømmes per tur, ellers ville
+   * koden fra forrige melding dukket opp igjen.
+   */
+  pendingBilder: { alt?: string; url: string }[];
   history: Historikklinje[];
   pendingProcessCandidates: Prosessvalg[];
   latestSummary: string | null;
@@ -1245,6 +1255,23 @@ async function advanceAndPrompt(state: Agentsesjon): Promise<string[]> {
       if (step.tekst) {
         messages.push(step.tekst);
       }
+      const bilde = step.bilde;
+      if (bilde?.url) {
+        state.pendingBilder.push({ alt: bilde.alt, url: bilde.url });
+      }
+      /*
+       * Et INFO-steg passeres normalt uten at innbygger gjør noe. Ikke dette:
+       * her står det en QR-kode som skal skannes, og neste steg venter på at
+       * lommeboken svarer. Kjørte agenten videre med én gang, ville koden kommet
+       * i samme svar som resultatet av ventingen - altså etter at den skulle
+       * vært skannet.
+       */
+      if (step.venterPaaBruker) {
+        state.awaiting = "info_ack";
+        state.awaitingStepId = step.id;
+        messages.push("Si ifra når du er ferdig, så går jeg videre.");
+        return messages;
+      }
       await tryNextStep(state.oektsId);
       continue;
     }
@@ -1420,6 +1447,13 @@ async function handleMessage(state: Agentsesjon, message: string): Promise<strin
     return back
       ? [sidesvar.tekst, `Tilbake til der vi var: ${back}`]
       : [sidesvar.tekst];
+  }
+
+  if (state.awaiting === "info_ack") {
+    state.awaiting = null;
+    state.awaitingStepId = null;
+    await tryNextStep(state.oektsId);
+    return advanceAndPrompt(state);
   }
 
   if (state.awaiting === "question") {
@@ -1846,6 +1880,7 @@ async function createAgentSession(body: { personId?: string }) {
     awaitingStepId: null,
     awaitingValideringTools: [],
     lastSession: null,
+    pendingBilder: [],
     history: [],
     pendingProcessCandidates: [],
     latestSummary: null,
@@ -1939,6 +1974,7 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
       const userMessage = String(body.message || "");
       session.history.push({ role: "user", message: userMessage, tidspunkt: new Date().toISOString() });
 
+      session.pendingBilder = [];
       const replies = await handleMessage(session, userMessage);
       for (const message of replies) {
         session.history.push({ role: "assistant", message, tidspunkt: new Date().toISOString() });
@@ -1948,6 +1984,7 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
       json(response, 200, {
         sessionId: session.sessionId,
         replies,
+        bilder: session.pendingBilder,
         awaiting: session.awaiting,
         selectedProcess: session.selectedProcess,
         pendingProcessCandidates: session.pendingProcessCandidates,

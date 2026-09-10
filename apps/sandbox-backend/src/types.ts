@@ -37,20 +37,51 @@ export type SpoersmaalsFelt = {
 
 export type ApiKall = {
   method?: string;
+  /**
+   * A path (`/api/...`) resolves against the resource catalog. An absolute
+   * https-URL is a real external service, and only hosts on the allowlist in
+   * config.ts are reachable. See kallEksterntApi in prosess.ts.
+   */
   url: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+};
+
+/** Repeat an external GET until a field in the response reaches a given value. */
+export type Polling = {
+  felt: string;
+  verdi: string;
+  intervallMs?: number;
+  maksForsok?: number;
+  tidsavbruddMelding?: string;
+};
+
+/**
+ * Et bilde et steg vil vise innbyggeren.
+ *
+ * `kilde` er enten en data-URL rett i definisjonen, eller
+ * {resultat.<stegId>.<felt>} - en verdi et tidligere steg hentet, som QR-koden
+ * fra verifier-tjenesten. `url` settes av serveren når kilden lot seg slå opp;
+ * står den ikke der, har klienten ingenting å tegne.
+ */
+export type Stegbilde = {
+  kilde: string;
+  alt?: string;
+  url?: string;
 };
 
 type StegFelles = {
   id: string;
   tittel?: string;
   tekst?: string;
+  bilde?: Stegbilde;
 };
 
 export type ProsessSteg = StegFelles & (
-  | { type: "INFO" }
+  | { type: "INFO"; venterPaaBruker?: boolean }
   | { type: "QUESTION"; felter?: SpoersmaalsFelt[] }
   | { type: "CONSENT_REQUEST"; formaal?: string; dataKilder?: string[] }
-  | { type: "DATA_FETCH"; api: ApiKall; kreverSamtykke?: string }
+  | { type: "DATA_FETCH"; api: ApiKall; kreverSamtykke?: string; polling?: Polling }
   | { type: "SJEKK"; api: ApiKall; feilmelding?: string }
   | { type: "SUMMARY" }
   | { type: "SUBMIT" }

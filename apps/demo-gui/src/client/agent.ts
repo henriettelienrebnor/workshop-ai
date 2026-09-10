@@ -16,6 +16,8 @@ type AgentSvar = {
   sessionId?: string;
   message?: string;
   replies?: string[];
+  /** Bilder stegene ba om å få vist, for eksempel en QR-kode som skal skannes. */
+  bilder?: Stegbilde[];
   grunnlag?: Grunnlag;
   awaiting?: string | null;
   selectedProcess?: { navn?: string };
@@ -127,6 +129,10 @@ async function sendMessage(): Promise<void> {
 
     for (const reply of data.replies || []) {
       addMsg("assistant", reply);
+    }
+
+    for (const bilde of data.bilder || []) {
+      addBildeMelding(bilde);
     }
 
     if (data.grunnlag) {
