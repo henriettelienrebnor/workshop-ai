@@ -763,6 +763,15 @@ function buildTemplateResponse(type: string, body: AiKropp) {
       return "Ut fra opplysningene dine endrer vindusbyttet verken fasaden eller bærekonstruksjonen. Du trenger derfor ikke sende inn informasjon til kommunen eller kontakte entreprenør for dette tiltaket.";
     }
 
+    if (body?.kontekst?.prosessId === "byggesoknad") {
+      return [
+        "Tiltaket skal behandles som byggesøknad hos kommunen.",
+        "Opplysningene om eiendommen, reguleringsplanen, naboene og tiltaket brukes som grunnlag for byggesøknaden.",
+        "Før byggesøknaden kan sendes inn, må nabovarslene sendes.",
+        "Byggesøknaden kan først sendes til kommunen når fristen på 14 dager etter nabovarsel er utløpt."
+      ].join(" ");
+    }
+
     const fartsdempendeOppsummering = buildFartsdempendeOppsummering();
     if (fartsdempendeOppsummering) {
       return fartsdempendeOppsummering;
@@ -974,6 +983,8 @@ function buildPrompt(type: string, body: AiKropp, fallbackTekst: string): string
     `Svar kort på ${sprakNavn} med klart språk uten personopplysninger utover det som er gitt.`,
     kontekst.utfall === "INGEN_SOKNAD"
       ? "Når du oppsummerer, si tydelig at ingenting sendes inn fordi utfallet allerede er bestemt til ingen søknad."
+      : kontekst.prosessId === "byggesoknad"
+        ? "Når du oppsummerer byggesøknaden, si tydelig at opplysningene brukes som grunnlag for byggesøknaden, at nabovarsler må sendes først, og at byggesøknaden først kan sendes til kommunen når fristen på 14 dager etter nabovarsel er utløpt."
       : "Når du oppsummerer, si tydelig hva som ble funnet og hva som sendes inn.",
     ...sperrer,
     `Oppgavetype: ${type}`,

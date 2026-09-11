@@ -136,6 +136,21 @@ textarea {
   max-height: 520px;
   overflow-y: auto;
 }
+.summary-bubble h3 {
+  margin: 0 0 var(--ds-size-3, 0.75rem);
+}
+.summary-bubble p {
+  margin: 0 0 var(--ds-size-4, 1rem);
+}
+.summary-steps {
+  display: grid;
+  gap: var(--ds-size-2, 0.5rem);
+  margin: 0;
+  padding-left: var(--ds-size-6, 1.5rem);
+}
+.summary-steps li::marker {
+  font-weight: 700;
+}
 .chat-composer {
   align-items: end;
   display: flex;

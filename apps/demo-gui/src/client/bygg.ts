@@ -134,6 +134,41 @@ function addMessage(role: "assistant" | "user" | "error", text: string): void {
   chat.scrollTop = chat.scrollHeight;
 }
 
+function addByggesoknadSummary(text: string): void {
+  const row = document.createElement("div");
+  row.className = "msg assistant";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble summary-bubble";
+
+  const heading = document.createElement("h3");
+  heading.className = "ds-heading";
+  heading.dataset.size = "xs";
+  heading.textContent = "Oppsummering før nabovarsel";
+  bubble.appendChild(heading);
+
+  const summary = document.createElement("p");
+  summary.className = "ds-paragraph";
+  summary.textContent = text;
+  bubble.appendChild(summary);
+
+  const list = document.createElement("ol");
+  list.className = "summary-steps";
+  for (const item of [
+    "Opplysningene brukes som grunnlag for byggesøknaden.",
+    "Før byggesøknaden kan sendes inn, må nabovarslene sendes.",
+    "Byggesøknaden kan først sendes til kommunen når fristen på 14 dager etter nabovarsel er utløpt.",
+  ]) {
+    const listItem = document.createElement("li");
+    listItem.textContent = item;
+    list.appendChild(listItem);
+  }
+  bubble.appendChild(list);
+
+  row.appendChild(bubble);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+}
+
 function visSoknadslenke(): void {
   if (document.getElementById("fyllUtByggesoknad")) return;
 
@@ -144,7 +179,7 @@ function visSoknadslenke(): void {
   button.className = "ds-button";
   button.id = "fyllUtByggesoknad";
   button.type = "button";
-  button.textContent = "Fyll ut byggesøknaden";
+  button.textContent = "Gå til nabovarsel";
   button.addEventListener("click", openApplicationForm);
 
   wrapper.appendChild(button);
@@ -214,7 +249,7 @@ async function fullforByggesoknadsvurdering(): Promise<void> {
 
   await nesteSteg();
   const oppsummering = await kjorHandling();
-  if (oppsummering.tekst) addMessage("assistant", textValue(oppsummering.tekst));
+  if (oppsummering.tekst) addByggesoknadSummary(textValue(oppsummering.tekst));
   await nesteSteg();
   visSoknadslenke();
 }
