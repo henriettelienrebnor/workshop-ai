@@ -30,11 +30,22 @@ const personSelect = krevEl<HTMLSelectElement>("personvelger");
 
 type Resultat = Record<string, unknown>;
 type Handlingssvar = { oekt: Prosessoekt; resultat?: Resultat };
-type SporsmaalSvar = { tekst?: string; feil?: string; advarsel?: string };
+type Feltavklaring = { verdi: boolean | null; confidence: number };
+type Tiltaksavklaring = {
+  fasadeendring: Feltavklaring;
+  endringBaerekonstruksjon: Feltavklaring;
+  oppfolgingssporsmaal?: string | null;
+  advarsel?: string;
+};
 
 let oekt: Prosessoekt | null = null;
 let prosess: Prosess | null = null;
 let person: Person | null = null;
+let tiltaksomfangHistorikk: { role: string; message: string }[] = [];
+let tiltaksomfangRunder = 0;
+
+const tiltaksomfangTerskel = 0.7;
+const tiltaksomfangMaksRunder = 10;
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${backendBase}${path}`, {
@@ -123,18 +134,6 @@ function addMessage(role: "assistant" | "user" | "error", text: string): void {
   chat.scrollTop = chat.scrollHeight;
 }
 
-function viserSoknadsplikt(text: string): boolean {
-  const normalized = text.toLocaleLowerCase("nb-NO");
-  return (
-    normalized.includes("må søke") ||
-    normalized.includes("må sende inn") ||
-    normalized.includes("søknadspliktig") ||
-    normalized.includes("søke byggesøknad") ||
-    normalized.includes("krever søknad") ||
-    normalized.includes("du må sende søknad")
-  );
-}
-
 function visSoknadslenke(): void {
   if (document.getElementById("fyllUtByggesoknad")) return;
 
@@ -151,6 +150,103 @@ function visSoknadslenke(): void {
   wrapper.appendChild(button);
   chat.appendChild(wrapper);
   chat.scrollTop = chat.scrollHeight;
+}
+
+async function tolkTiltaksomfang(
+  text: string,
+): Promise<Tiltaksavklaring | null> {
+  try {
+    const source = resultFor("hent-saksgrunnlag");
+    const response = await fetch(`${aiBase}/ai/tolk-tiltaksomfang`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tekst: text,
+        history: tiltaksomfangHistorikk,
+        kontekst: { reguleringsplan: source.reguleringsplan || null },
+        sporingsId: oekt?.sporingsId,
+      }),
+    });
+
+    const data = (await response.json()) as Tiltaksavklaring & {
+      feil?: string;
+    };
+    if (!response.ok) throw new Error(data.feil || `Feil ${response.status}`);
+    return data;
+  } catch (error) {
+    addMessage("error", `Kunne ikke tolke tiltaket: ${feilmelding(error)}`);
+    return null;
+  }
+}
+
+async function lagreStegsvar(stegId: string, svar: unknown): Promise<void> {
+  if (!oekt) throw new Error("Prosessøkten er ikke startet.");
+  oekt = await req<Prosessoekt>(`/api/prosessoekter/${oekt.oektsId}/svar`, {
+    method: "POST",
+    body: JSON.stringify({ stegId, svar }),
+  });
+}
+
+async function fullforByggesoknadsvurdering(): Promise<void> {
+  await nesteSteg();
+  const sjekk = await kjorHandling();
+  addMessage("assistant", textValue(sjekk.melding || "Vurderingen er fullført."));
+
+  if (oekt?.status === "AVVIST") return;
+
+  await nesteSteg();
+  const oppsummering = await kjorHandling();
+  if (oppsummering.tekst) addMessage("assistant", textValue(oppsummering.tekst));
+  await nesteSteg();
+  visSoknadslenke();
+}
+
+async function handleTiltaksmelding(text: string): Promise<void> {
+  if (!oekt?.aktivtSteg) throw new Error("Prosessøkten mangler aktivt steg.");
+
+  if (oekt.aktivtSteg.id === "vis-saksgrunnlag") {
+    await nesteSteg();
+  }
+
+  const steg = oekt.aktivtSteg;
+  if (steg?.id !== "avklar-tiltak") {
+    throw new Error(`Forventet avklar-tiltak, men står på ${steg?.id || "ukjent steg"}.`);
+  }
+
+  tiltaksomfangHistorikk.push({ role: "bruker", message: text });
+  const avklaring = await tolkTiltaksomfang(text);
+  if (!avklaring) return;
+
+  const ferdigAvklart =
+    avklaring.fasadeendring.verdi !== null &&
+    avklaring.fasadeendring.confidence >= tiltaksomfangTerskel &&
+    avklaring.endringBaerekonstruksjon.verdi !== null &&
+    avklaring.endringBaerekonstruksjon.confidence >= tiltaksomfangTerskel &&
+    !avklaring.oppfolgingssporsmaal;
+
+  if (!ferdigAvklart) {
+    tiltaksomfangRunder += 1;
+    const oppfolging =
+      avklaring.oppfolgingssporsmaal ||
+      "Kan du si litt mer om størrelse, form og plassering på vinduet, og om veggen rundt må endres?";
+    tiltaksomfangHistorikk.push({ role: "assistent", message: oppfolging });
+    addMessage(
+      "assistant",
+      tiltaksomfangRunder >= tiltaksomfangMaksRunder
+        ? "Jeg klarer ikke å avklare dette helt gjennom samtale ennå. Skriv gjerne direkte om dette er en fasadeendring, og om bærekonstruksjonen berøres."
+        : oppfolging,
+    );
+    return;
+  }
+
+  await lagreStegsvar(steg.id, {
+    fasadeendring: avklaring.fasadeendring.verdi,
+    endringBaerekonstruksjon: avklaring.endringBaerekonstruksjon.verdi,
+  });
+  tiltaksomfangHistorikk = [];
+  tiltaksomfangRunder = 0;
+  addMessage("assistant", "Takk, da har jeg det jeg trenger om tiltaket.");
+  await fullforByggesoknadsvurdering();
 }
 
 function addOverviewSection(title: string): HTMLElement {
@@ -386,35 +482,11 @@ async function sendMessage(event: SubmitEvent): Promise<void> {
   const loadingMessage = addLoadingMessage();
 
   try {
-    const response = await fetch(`${aiBase}/ai/sporsmaal`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tekst: text,
-        sporingsId: oekt.sporingsId,
-        sprak: "nb",
-        kontekst: {
-          tjeneste: prosess?.navn,
-          prosess,
-          steg: oekt.aktivtSteg,
-          resultater: oekt.resultater,
-          svar: oekt.svar,
-        },
-      }),
-    });
-
-    const data = (await response.json()) as SporsmaalSvar;
-    if (!response.ok) throw new Error(data.feil || `Feil ${response.status}`);
+    await handleTiltaksmelding(text);
     loadingMessage.remove();
-
-    if (data.tekst) {
-      addMessage("assistant", data.tekst);
-      if (viserSoknadsplikt(data.tekst)) visSoknadslenke();
-    }
-    if (data.advarsel) addMessage("error", data.advarsel);
   } catch (error) {
     loadingMessage.remove();
-    addMessage("error", `Fikk ikke svar på spørsmålet: ${feilmelding(error)}`);
+    addMessage("error", `Kunne ikke behandle svaret: ${feilmelding(error)}`);
   } finally {
     chatInput.disabled = false;
     if (chatSubmitBtn) chatSubmitBtn.disabled = false;
