@@ -5,8 +5,24 @@ tolkning, klarspråk og frie spørsmål fra innbygger - med sperrer som kjører 
 provider-bytte uten restart, og fullt spor av hvert modellkall. Lurer du bare på om
 modellen er koblet på, hopp til «Er modellen koblet på?».
 
-Stack: Node.js med innebygd HTTP-server. Ollama og OpenRouter kalles med rå `fetch`;
+Stack: Node.js med innebygd HTTP-server. Ollama, OpenRouter og Telenor AI Factory kalles med rå `fetch`;
 Bedrock er unntaket og bruker en SDK - se «AWS Bedrock» under.
+
+## Telenor AI Factory
+
+Provideren bruker et OpenAI-kompatibelt `chat/completions`-endepunkt. Sett dette i `.env`:
+
+```dotenv
+AI_PROVIDER=telenor_ai_factory
+TELENOR_AI_FACTORY_BASE_URL=https://<ai-factory-endepunkt>/
+TELENOR_AI_FACTORY_API_KEY=<nøkkel>
+TELENOR_AI_FACTORY_MODEL=GLM-5.2-FP8
+```
+
+URL-en er bevisst konfigurert separat fordi den avhenger av hvilket AI Factory-miljø
+du har tilgang til. Gatewayen legger til `/v1/chat/completions` på en base-URL; en URL
+som allerede slutter på `/chat/completions` brukes direkte. Provider kan også velges
+uten restart fra `/admin` når variablene er satt.
 
 ## Endepunkter
 
