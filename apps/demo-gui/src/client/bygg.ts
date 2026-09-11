@@ -1,7 +1,5 @@
 export {};
 
-renderTopNav("/bygg");
-
 const backendBase = "http://localhost:8080";
 const aiBase = "http://localhost:8082";
 const processId = "byggesoknad";
@@ -11,6 +9,7 @@ const walletPanel = krevEl("walletPanel");
 const chatPanel = krevEl("chatPanel");
 const applicationPanel = krevEl("applicationPanel");
 const applicationOverview = krevEl("applicationOverview");
+const walletOverview = krevEl("walletOverview");
 const sendNeighborNotice = krevEl<HTMLButtonElement>("sendNeighborNotice");
 const neighborNoticeStatus = krevEl("neighborNoticeStatus");
 const scanStatus = krevEl("scanStatus");
@@ -26,8 +25,6 @@ const chatInput = krevEl<HTMLTextAreaElement>("chatInput");
 const chatSubmitBtn = chatForm.querySelector(
   'button[type="submit"]',
 ) as HTMLButtonElement;
-const personSelect = krevEl<HTMLSelectElement>("personvelger");
-
 type Resultat = Record<string, unknown>;
 type Handlingssvar = { oekt: Prosessoekt; resultat?: Resultat };
 type Feltavklaring = { verdi: boolean | null; confidence: number };
@@ -144,7 +141,7 @@ function visSoknadslenke(): void {
   button.className = "ds-button";
   button.id = "fyllUtByggesoknad";
   button.type = "button";
-  button.textContent = "Fyll ut byggesøknaden";
+  button.textContent = "Send nabovarsel";
   button.addEventListener("click", openApplicationForm);
 
   wrapper.appendChild(button);
@@ -308,62 +305,71 @@ function renderApplicationOverview(): void {
   const eiendom = (source.eiendom || {}) as Resultat;
   const plan = (source.reguleringsplan || {}) as Resultat;
 
-  const propertySection = addOverviewSection("Eiendom og søker");
-  addOverviewData(propertySection, [
+  const neighbors = Array.isArray(source.naboadresser)
+    ? source.naboadresser
+    : Array.isArray(source.naboer)
+      ? source.naboer.map((neighbor) => (neighbor as Resultat).adresse)
+      : [];
+  const planStatus = plan.planId
+    ? `${textValue(plan.planId)} · ${textValue(plan.plantype)} · ${textValue(plan.planstatus)}`
+    : undefined;
+  const overviewSection = addOverviewSection("Saksgrunnlag");
+  addOverviewData(overviewSection, [
     [
       "Søker",
       `${textValue(resultFor("hent-resultat").fornavn)} ${textValue(resultFor("hent-resultat").etternavn)}`,
     ],
     ["Adresse", eiendom.adresse || resultFor("hent-resultat").eiendomsadresse],
-    ["Kommune", eiendom.kommune],
     ["Matrikkelnummer", eiendom.matrikkelnummer],
-  ]);
-
-  const planSection = addOverviewSection("Plan og bestemmelser");
-  addOverviewData(planSection, [
-    ["Reguleringsplan", plan.planNavn || source.planmerknad],
-    [
-      "Plan-ID og status",
-      plan.planId
-        ? `${textValue(plan.planId)} · ${textValue(plan.plantype)} · ${textValue(plan.planstatus)}`
-        : "Ikke oppgitt",
-    ],
+    ["Kommune", eiendom.kommune],
+    ["Reguleringsplan", plan.planNavn],
+    ["Plan-ID og status", planStatus],
     ["Arealformål", plan.formaal],
+    ["Hensynssoner", plan.hensynssoner],
+    ["Bestemmelser", plan.bestemmelser],
+    ["Uten plan", source.planmerknad],
+    ["Naboer som skal varsles", neighbors],
+    ["Om nabolisten", source.nabolistegrunnlag],
+  ]);
+}
+
+function renderWalletOverview(): void {
+  walletOverview.replaceChildren();
+  const wallet = resultFor("hent-resultat");
+  const source = resultFor("hent-saksgrunnlag");
+  const eiendom = (source.eiendom || {}) as Resultat;
+  const plan = (source.reguleringsplan || {}) as Resultat;
+  const planStatus = plan.planId
+    ? `${textValue(plan.planId)} · ${textValue(plan.plantype)} · ${textValue(plan.planstatus)}`
+    : undefined;
+  const section = addOverviewSectionFor(walletOverview, "Lommebokopplysninger");
+  addOverviewData(section, [
+    ["Søker", `${textValue(wallet.fornavn)} ${textValue(wallet.etternavn)}`],
+    ["Adresse", eiendom.adresse || wallet.eiendomsadresse],
+    ["Person-ID", wallet.personnummer],
+    ["Matrikkelnummer", eiendom.matrikkelnummer],
+    ["Kommune", eiendom.kommune],
+    ["Reguleringsplan", plan.planNavn],
+    ["Plan-ID og status", planStatus],
+    ["Arealformål", plan.formaal],
+    ["Hensynssoner", plan.hensynssoner],
     ["Bestemmelser", plan.bestemmelser],
   ]);
+}
 
-  const neighborSection = addOverviewSection("Mottakere av nabovarsel");
-  const neighbors = Array.isArray(source.naboer) ? source.naboer : [];
-  const addresses = Array.isArray(source.naboadresser)
-    ? source.naboadresser
-    : [];
-  const list = document.createElement("ul");
-  list.className = "neighbor-list";
-  for (const neighbor of neighbors) {
-    const item = document.createElement("li");
-    const data = (neighbor || {}) as Resultat;
-    item.textContent = `${textValue(data.adresse)} (${textValue(data.matrikkelId)})`;
-    list.appendChild(item);
-  }
-  if (neighbors.length === 0) {
-    for (const address of addresses) {
-      const item = document.createElement("li");
-      item.textContent = textValue(address);
-      list.appendChild(item);
-    }
-  }
-  if (list.children.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "ds-paragraph";
-    empty.textContent = "Nabolisten er ikke hentet ennå.";
-    neighborSection.appendChild(empty);
-  } else {
-    neighborSection.appendChild(list);
-  }
-  const note = document.createElement("p");
-  note.className = "ds-paragraph";
-  note.textContent = textValue(source.nabolistegrunnlag);
-  neighborSection.appendChild(note);
+function addOverviewSectionFor(
+  container: HTMLElement,
+  title: string,
+): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "overview-section";
+  const heading = document.createElement("h3");
+  heading.className = "ds-heading";
+  heading.dataset.size = "sm";
+  heading.textContent = title;
+  section.appendChild(heading);
+  container.appendChild(section);
+  return section;
 }
 
 function oppdaterFremdrift(aktivtId: "scan" | "chat" | "soknad"): void {
@@ -445,24 +451,17 @@ async function startVerification(): Promise<void> {
 }
 
 function showWalletData(): void {
-  const wallet = resultFor("hent-resultat");
-  const name =
-    `${textValue(wallet.fornavn)} ${textValue(wallet.etternavn)}`.trim();
-
-  krevEl("walletAddress").textContent = textValue(wallet.eiendomsadresse);
-  krevEl("walletName").textContent = name || "Ikke oppgitt";
-  krevEl("walletPersonId").textContent = textValue(wallet.personnummer);
-
   qrPanel.hidden = true;
   qrPanel.style.display = "none";
   walletPanel.hidden = false;
   chatPanel.hidden = false;
+  renderWalletOverview();
 
   oppdaterFremdrift("chat");
 
   addMessage(
     "assistant",
-    `Hei! Jeg kan hjelpe deg å finne ut om du trenger byggesøknad for ${textValue(wallet.eiendomsadresse)}. Hva planlegger du å bygge eller endre?`,
+    `Hei! Du ønsker å endre et vindu på eiendommen din. Jeg kan hjelpe deg med å finne ut om du trenger byggesøknad for dette. Og om du eventuelt trenger en entreprenør for arbeidet.`,
   );
 
   const walletTitle = krevEl("walletTitle");
@@ -527,7 +526,11 @@ async function init(): Promise<void> {
   if (!(await requireLogin())) return;
 
   const personer = await req<Person[]>("/api/personer");
-  person = showLoggedInPerson(personSelect, personer);
+  const pid = loggedInPid();
+  person =
+    personer.find((candidate) => candidate.syntetiskFodselsnummer === pid) ||
+    null;
+  if (!person) throw new Error(`Fant ikke innlogget bruker ${pid || ""}.`);
 
   const prosesser = await req<Prosess[]>("/api/prosesser");
   prosess = prosesser.find((candidate) => candidate.id === processId) || null;
