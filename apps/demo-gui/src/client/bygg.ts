@@ -354,14 +354,14 @@ async function receiveWalletData(): Promise<void> {
   setStatusLoading("Henter opplysninger ...", true);
   try {
     await nesteSteg();
-    // setStatus("Venter på godkjenning i Digital lommebok ...");
-    // await kjorHandling();
-    // await nesteSteg();
-    // setStatus("Henter de delte opplysningene ...");
-    // await kjorHandling();
-    // await nesteSteg();
-    // setStatus("Slår opp eiendommen og saksgrunnlaget ...");
-    // await kjorHandling();
+    setStatusLoading("Venter på godkjenning i Digital lommebok ...", true);
+    await kjorHandling();
+    await nesteSteg();
+    setStatusLoading("Henter de delte opplysningene ...", true);
+    await kjorHandling();
+    await nesteSteg();
+    setStatusLoading("Slår opp eiendommen og saksgrunnlaget ...", true);
+    await kjorHandling();
     await nesteSteg();
     showWalletData();
   } catch (error) {
