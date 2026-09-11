@@ -762,6 +762,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/SjekkResultat"
 
+  /api/byggesoknad/sjekk/tiltaksomfang:
+    get:
+      summary: Avgør neste steg etter avklart vindusbytte
+      security:
+        - idporten: []
+        - maskinporten: [ks:innbyggerdialog:les]
+      description: >
+        Brukes av SJEKK-steg i byggesøknadsprosessen. Endring i
+        bærekonstruksjonen stopper veiledningen med beskjed om entreprenør,
+        fasadeendring går videre til innsending, og ingen av delene stopper
+        med beskjed om at innbyggeren ikke trenger å sende informasjon til
+        kommunen.
+      parameters:
+        - name: fasadeendring
+          in: query
+          required: true
+          schema:
+            type: boolean
+        - name: endringBaerekonstruksjon
+          in: query
+          required: true
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Vurdering utført
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SjekkResultat"
+
   /api/eiendom/saksgrunnlag:
     get:
       summary: Hent eiendom, reguleringsplan og naboliste for én adresse

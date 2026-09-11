@@ -282,6 +282,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TolkSvarResponse"
+  /ai/tolk-tiltaksomfang:
+    post:
+      summary: Trekk ut en tiltaksomfang-avklaring (fasadeendring, bærekonstruksjon) fra en samtale
+      description: |
+        Brukt av byggesøknadens avklar-tiltak-steg. Tar `tekst` (siste brukermelding),
+        `history` (tidligere samtaleturer) og `kontekst` (reguleringsplan-grunnlag for
+        eiendommen), og returnerer to felt med hver sin selvrapporterte `confidence`.
+        Avgjør ingenting selv - steget som kaller dette avgjør når confidence er høy
+        nok, og selve utfallet (fortsett / trenger entreprenør / ingen søknad nødvendig)
+        avgjøres deterministisk i et senere SJEKK-steg.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TolkTiltaksomfangRequest"
+      responses:
+        "200":
+          description: Tiltaksavklaring returnert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TolkTiltaksomfangResponse"
   /ai/velg-prosess:
     post:
       summary: Match fritekstmelding til mest sannsynlig prosess
@@ -567,6 +590,119 @@ components:
           type: string
         syntetisk:
           type: boolean
+    TolkTiltaksomfangRequest:
+      type: object
+      required: [tekst]
+      properties:
+        tekst:
+          type: string
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              message:
+                type: string
+        kontekst:
+          type: object
+          additionalProperties: true
+        sporingsId:
+          type: string
+    Feltavklaring:
+      type: object
+      required: [verdi, confidence]
+      properties:
+        verdi:
+          type: boolean
+          nullable: true
+        confidence:
+          type: number
+    TolkTiltaksomfangResponse:
+      type: object
+      required: [fasadeendring, endringBaerekonstruksjon, begrunnelse]
+      properties:
+        fasadeendring:
+          $ref: "#/components/schemas/Feltavklaring"
+        endringBaerekonstruksjon:
+          $ref: "#/components/schemas/Feltavklaring"
+        tiltak:
+          $ref: "#/components/schemas/Vindustiltak"
+        kravvurdering:
+          type: array
+          items:
+            $ref: "#/components/schemas/Kravvurdering"
+        mangler:
+          type: array
+          items:
+            type: string
+        begrunnelse:
+          type: string
+        oppfolgingssporsmaal:
+          type: string
+          nullable: true
+        modell:
+          type: string
+        syntetisk:
+          type: boolean
+        advarsel:
+          type: string
+    Vindustiltak:
+      type: object
+      properties:
+        type:
+          type: string
+          example: vindusutskifting
+        plassering:
+          type: object
+          properties:
+            motGate:
+              type: boolean
+              nullable: true
+        visuelt:
+          type: object
+          properties:
+            storrelseEndres:
+              type: boolean
+              nullable: true
+            plasseringEndres:
+              type: boolean
+              nullable: true
+            hovedinndelingEndres:
+              type: boolean
+              nullable: true
+            fargeEndres:
+              type: boolean
+              nullable: true
+            nyFarge:
+              type: string
+              nullable: true
+            materialeEndres:
+              type: boolean
+              nullable: true
+        konstruksjon:
+          type: object
+          properties:
+            baerendeKonstruksjonBerort:
+              type: boolean
+              nullable: true
+    Kravvurdering:
+      type: object
+      properties:
+        bestemmelseId:
+          type: string
+        kravId:
+          type: string
+        status:
+          type: string
+          enum: [oppfylt, mangler_fakta]
+        mangler:
+          type: array
+          items:
+            type: string
+        veiledning:
+          type: string
     VelgVerktoyRequest:
       type: object
       required: [steg]

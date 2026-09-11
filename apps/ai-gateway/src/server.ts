@@ -19,6 +19,14 @@ import {
   sanitizeSporsmaalKontekst,
   validateAnswer
 } from "./sporsmaalsperrer.ts";
+import {
+  buildTiltaksomfangPrompt,
+  loggTiltaksomfangUttrekk,
+  medDeterministiskTiltaksomfangSjekk,
+  TILTAKSOMFANG_FALLBACK,
+  validateTiltaksavklaring
+} from "./tiltaksomfang.ts";
+import type { Tiltaksavklaring } from "./tiltaksomfang.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Same split as sandbox-backend: everything written at runtime goes to state/,
@@ -216,6 +224,7 @@ function docsHtml(): string {
         <li><code>POST /ai/risikosjekk</code></li>
         <li><code>POST /ai/sporsmaal</code></li>
         <li><code>POST /ai/tolk-svar</code></li>
+        <li><code>POST /ai/tolk-tiltaksomfang</code></li>
         <li><code>POST /ai/velg-prosess</code></li>
         <li><code>POST /ai/velg-verktoy</code></li>
         <li><code>POST /ai/dommer</code> - LLM-dommer for <code>pnpm test:eval</code>. Revisjonslogges ikke.</li>
@@ -747,6 +756,10 @@ function buildTemplateResponse(type: string, body: AiKropp) {
   }
 
   function buildOppsummeringstekst() {
+    if (body?.kontekst?.utfall === "INGEN_SOKNAD") {
+      return "Ut fra opplysningene dine endrer vindusbyttet verken fasaden eller bærekonstruksjonen. Du trenger derfor ikke sende inn informasjon til kommunen eller kontakte entreprenør for dette tiltaket.";
+    }
+
     const fartsdempendeOppsummering = buildFartsdempendeOppsummering();
     if (fartsdempendeOppsummering) {
       return fartsdempendeOppsummering;
@@ -956,7 +969,9 @@ function buildPrompt(type: string, body: AiKropp, fallbackTekst: string): string
   return [
     "Du er en hjelpsom assistent i en kommunal demosandkasse.",
     `Svar kort på ${sprakNavn} med klart språk uten personopplysninger utover det som er gitt.`,
-    "Når du oppsummerer, si tydelig hva som ble funnet og hva som sendes inn.",
+    kontekst.utfall === "INGEN_SOKNAD"
+      ? "Når du oppsummerer, si tydelig at ingenting sendes inn fordi utfallet allerede er bestemt til ingen søknad."
+      : "Når du oppsummerer, si tydelig hva som ble funnet og hva som sendes inn.",
     ...sperrer,
     `Oppgavetype: ${type}`,
     `Tjeneste: ${kontekst.tjeneste || "ukjent"}`,
@@ -1372,6 +1387,38 @@ function parseJsonObject(tekst: string): Record<string, unknown> | null {
       }
     }
     return null;
+  }
+}
+
+
+async function getTiltaksavklaringFromModel(body: AiKropp) {
+  const { tekst, modell } = await callModel(buildTiltaksomfangPrompt(body), {
+    temperature: 0,
+    systemMessage: SYSTEM_JSON,
+    task: "tolk-tiltaksomfang",
+    sporingsId: body?.sporingsId
+  });
+  const parsed = validateTiltaksavklaring(parseJsonObject(tekst));
+  if (!parsed) {
+    throw new Error(`Kunne ikke tolke JSON-svar fra ${modell}`);
+  }
+  return { ...medDeterministiskTiltaksomfangSjekk(parsed, body), modell };
+}
+
+async function tolkTiltaksomfangMedAi(body: AiKropp) {
+  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "bedrock") {
+    return { ...medDeterministiskTiltaksomfangSjekk(TILTAKSOMFANG_FALLBACK, body), syntetisk: true, modell: "mock-ai-gateway" };
+  }
+
+  try {
+    return { ...(await getTiltaksavklaringFromModel(body)), syntetisk: true };
+  } catch (error) {
+    return {
+      ...medDeterministiskTiltaksomfangSjekk(TILTAKSOMFANG_FALLBACK, body),
+      syntetisk: true,
+      modell: `${aiProvider}-fallback`,
+      advarsel: `LLM-tolkning feilet: ${feilmelding(error)}`
+    };
   }
 }
 
@@ -2193,6 +2240,24 @@ const server = createServer(async (request: IncomingMessage, response: ServerRes
         sporingsId: body.sporingsId || newId("flyt"),
         handling: "KI_TOLKNING",
         ressurs: "tolk-svar",
+        aktor: { type: "system", id: "ai-gateway" }
+      });
+      jsonResponse(response, 200, svar);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/ai/tolk-tiltaksomfang") {
+      const body = await readRequestBody(request) as AiKropp;
+      const svar = await tolkTiltaksomfangMedAi(body);
+      console.log(
+        `tolk-tiltaksomfang: fasadeendring=${svar.fasadeendring.verdi} (confidence ${svar.fasadeendring.confidence}), ` +
+          `endringBaerekonstruksjon=${svar.endringBaerekonstruksjon.verdi} (confidence ${svar.endringBaerekonstruksjon.confidence})`
+      );
+      loggTiltaksomfangUttrekk(svar, body);
+      await addRevisjon({
+        sporingsId: body.sporingsId || newId("flyt"),
+        handling: "KI_TOLKNING",
+        ressurs: "tolk-tiltaksomfang",
         aktor: { type: "system", id: "ai-gateway" }
       });
       jsonResponse(response, 200, svar);

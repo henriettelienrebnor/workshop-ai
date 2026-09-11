@@ -24,6 +24,7 @@
     "test": "node scripts/valider-data.ts",
     "test:kontrakt": "node scripts/kontrakt-smoke.ts",
     "test:sperrer": "node scripts/test-sporsmaalsperrer.ts",
+    "test:tiltaksomfang": "node scripts/test-tiltaksomfang.ts",
     "test:skjerming": "node scripts/test-skjerming.ts",
     "test:vilkaar": "node scripts/test-vilkaar.ts",
     "test:foedselsnummer": "node scripts/test-foedselsnummer.ts",

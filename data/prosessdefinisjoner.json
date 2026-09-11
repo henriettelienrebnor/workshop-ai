@@ -836,151 +836,54 @@
           }
         },
         {
-          "id": "tiltakstype",
+          "id": "avklar-tiltak",
           "type": "QUESTION",
-          "tittel": "Hva skal du bygge?",
-          "tekst": "Velg hva søknaden gjelder.",
+          "tittel": "Bytte av vindu - hva innebærer det?",
+          "tekst": "Fortell med egne ord hva du skal gjøre med vinduet. Blir det samme størrelse, form og plassering som i dag, eller endrer du noe? Chatten hjelper deg videre og spør gjerne om mer hvis noe er uklart.",
           "felter": [
             {
-              "id": "tiltak",
-              "label": "Type tiltak",
-              "type": "valg",
-              "obligatorisk": true,
-              "alternativer": [
-                "Tilbygg",
-                "Garasje eller uthus",
-                "Bruksendring",
-                "Riving",
-                "Annet"
-              ]
-            }
-          ],
-          "forfatterhjelp": {
-            "hensikt": "Tiltakstypen avgjør resten: hvilke vedlegg som kreves, om tiltaket er søknadspliktig, og om det trengs ansvarlig søker.",
-            "skrivetips": "Utvid listen når flere tiltakstyper skal støttes."
-          }
-        },
-        {
-          "id": "beskriv-tiltak",
-          "type": "QUESTION",
-          "tittel": "Beskriv tiltaket",
-          "tekst": "Fortell kort hva du skal gjøre, hvor stort det blir og når du planlegger å starte.",
-          "felter": [
-            {
-              "id": "beskrivelse",
-              "label": "Beskrivelse av tiltaket",
-              "type": "tekst",
-              "obligatorisk": true,
-              "placeholder": "For eksempel: tilbygg på 15 kvadratmeter på baksiden av huset"
-            },
-            {
-              "id": "bruksareal",
-              "label": "Bruksareal i kvadratmeter",
-              "type": "tekst",
-              "obligatorisk": true,
-              "placeholder": "15"
-            },
-            {
-              "id": "planlagtOppstart",
-              "label": "Planlagt oppstart",
-              "type": "tekst",
-              "placeholder": "For eksempel: mars 2027"
-            }
-          ],
-          "forfatterhjelp": {
-            "hensikt": "PLACEHOLDER. Feltene er ikke validert ennå - bruksareal bør bli et tall, og oppstart en dato.",
-            "skrivetips": "Legg på validering i tools-api når feltene skal brukes til en vurdering."
-          }
-        },
-        {
-          "id": "nabovarsel",
-          "type": "QUESTION",
-          "tittel": "Har du varslet naboene?",
-          "tekst": "Naboene og gjenboerne i listen over skal varsles før søknaden sendes inn.",
-          "felter": [
-            {
-              "id": "varslet",
-              "label": "Naboene er varslet",
+              "id": "fasadeendring",
+              "label": "Er dette en fasadeendring?",
               "type": "ja-nei",
               "obligatorisk": true
             },
             {
-              "id": "merknader",
-              "label": "Kom det merknader fra naboene?",
-              "type": "tekst",
-              "placeholder": "Skriv «ingen» hvis det ikke kom merknader"
+              "id": "endringBaerekonstruksjon",
+              "label": "Medfører dette endring i bærekonstruksjonen?",
+              "type": "ja-nei",
+              "obligatorisk": true
             }
           ],
           "forfatterhjelp": {
-            "hensikt": "PLACEHOLDER. Nabovarsel er bekreftet av søkeren selv her - ingen kontroll mot naboliste eller frist.",
-            "skrivetips": "Nabovarselet har en frist på to uker. Den kan sjekkes når nabolisten faktisk hentes."
+            "hensikt": "Beslutningsport for vindusbytter: KI trekker ut de to boolske feltene fra fritekst via POST /ai/tolk-tiltaksomfang, med en confidence per felt. Feltene her er fallback-skjemaet hvis samtalen ikke lander på et svar - selve avgjørelsen (fortsett / trenger entreprenør / ingen søknad nødvendig) tas deterministisk i sjekk-tiltaksomfang rett etter, aldri av KI-en.",
+            "skrivetips": "Grunnlaget fra reguleringsplanen (hensynssoner, bestemmelser om fasade/vinduer/bevaring) fra hent-saksgrunnlag bør sendes med som kontekst til KI-kallet, slik at et vernet bygg kan forklares for bruker underveis."
           }
         },
         {
-          "id": "ansvarlig-soker",
-          "type": "QUESTION",
-          "tittel": "Hvem er ansvarlig for søknaden?",
-          "tekst": "Mindre tiltak kan du søke om selv. Større tiltak krever et ansvarlig foretak.",
-          "felter": [
-            {
-              "id": "ansvar",
-              "label": "Ansvarlig søker",
-              "type": "valg",
-              "obligatorisk": true,
-              "alternativer": [
-                "Jeg søker selv",
-                "Et foretak søker på mine vegne"
-              ]
-            },
-            {
-              "id": "organisasjonsnummer",
-              "label": "Organisasjonsnummer til foretaket",
-              "type": "tekst",
-              "placeholder": "Fylles ut hvis et foretak søker"
-            }
-          ],
+          "id": "sjekk-tiltaksomfang",
+          "type": "SJEKK",
+          "tittel": "Avgjør hva som må skje videre",
+          "tekst": "Jeg vurderer om tiltaket skal sendes som byggesøknad, eller om du må få hjelp videre på en annen måte.",
+          "api": {
+            "method": "GET",
+            "url": "/api/byggesoknad/sjekk/tiltaksomfang?fasadeendring={svar.avklar-tiltak.fasadeendring}&endringBaerekonstruksjon={svar.avklar-tiltak.endringBaerekonstruksjon}"
+          },
           "forfatterhjelp": {
-            "hensikt": "PLACEHOLDER. Organisasjonsnummeret slås ikke opp ennå.",
-            "skrivetips": "tools-api har brreg-oppslag som kan bekrefte at foretaket finnes og er aktivt."
+            "hensikt": "Backend avgjør utfallet deterministisk. Endring i bærekonstruksjonen stopper prosessen med beskjed om entreprenør. Fasadeendring uten konstruksjonsendring går videre til skjema. Ingen av delene stopper prosessen med beskjed om at tiltaket ikke trenger innsending.",
+            "skrivetips": "Ikke flytt denne avgjørelsen til KI. KI kan trekke ut og formulere, men SJEKK-steget bestemmer prosessutfallet."
           }
         },
         {
-          "id": "vedlegg",
-          "type": "QUESTION",
-          "tittel": "Vedlegg til søknaden",
-          "tekst": "Beskriv hvilke tegninger og kart du har klart. Opplasting kommer senere.",
-          "felter": [
-            {
-              "id": "vedleggsliste",
-              "label": "Hvilke vedlegg har du?",
-              "type": "tekst",
-              "placeholder": "For eksempel: situasjonsplan, plantegning, fasadetegning"
-            }
-          ],
-          "forfatterhjelp": {
-            "hensikt": "PLACEHOLDER. Prosessmotoren har ingen filopplasting - dette er tekst inntil videre.",
-            "skrivetips": "Hvilke vedlegg som kreves følger av tiltakstypen. Legg koblingen inn når SJEKK-steget under bygges."
-          }
-        },
-        {
-          "id": "sjekk-soknadsplikt",
-          "type": "INFO",
-          "tittel": "Er tiltaket søknadspliktig?",
-          "tekst": "Noen mindre tiltak er unntatt søknadsplikt. Vurderingen av dette tiltaket kommer her.",
-          "forfatterhjelp": {
-            "hensikt": "PLACEHOLDER. Skal bli et SJEKK-steg med en deterministisk regel, slik SJEKK-stegene i de andre prosessene er.",
-            "skrivetips": "Regelen hører hjemme i data/satser.json og apps/sandbox-backend/src/regler.ts. KI forklarer utfallet, men avgjør det ikke."
-          }
-        },
-        {
-          "id": "oppsummering",
+          "id": "oppsummer-byggesoknad",
           "type": "SUMMARY",
-          "tittel": "Oppsummering av søknaden"
+          "tittel": "Oppsummer byggesøknaden",
+          "tekst": "Jeg lager en kort oppsummering før skjemaet sendes inn."
         },
         {
-          "id": "send-inn",
+          "id": "send-byggesoknad",
           "type": "SUBMIT",
-          "tittel": "Send byggesøknaden"
+          "tittel": "Send inn byggesøknad",
+          "tekst": "Tiltaket ser ut til å være en fasadeendring som kan sendes inn til kommunen. Vil du sende inn skjemaet nå?"
         }
       ],
       "syntetisk": true

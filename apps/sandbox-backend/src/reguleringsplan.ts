@@ -1,5 +1,20 @@
 import type { Reguleringsplan, State } from "./types.ts";
 
+const vindusrelevanteTema = new Set([
+  "fasade",
+  "vinduer",
+  "farge_og_materialbruk",
+  "bevaring",
+  "søknadspliktige_tiltak"
+]);
+
+const vindusrelevanteKoder = new Set([
+  "fasadeendring",
+  "vindusendring",
+  "nytt_vindu",
+  "storrelsesendring"
+]);
+
 // PLANREGISTERET
 //
 // data/reguleringsplan.json er et forenklet kommunalt planregister. Det holdes
@@ -25,6 +40,11 @@ export function finnPlanForEiendom(
  * klienten: stegvis, chat og agenten viser den samme saken.
  */
 export function planSammendrag(plan: Reguleringsplan) {
+  const relevanteBestemmelser = plan.planbestemmelser.filter((bestemmelse) =>
+    vindusrelevanteTema.has(bestemmelse.tema) ||
+    bestemmelse.relevantFor?.some((kode) => vindusrelevanteKoder.has(kode))
+  );
+
   return {
     planId: plan.planId,
     planNavn: plan.planNavn,
@@ -38,6 +58,13 @@ export function planSammendrag(plan: Reguleringsplan) {
     ),
     hensynssoner: plan.hensynssoner.map((sone) => `${sone.kode} ${sone.navn}`),
     bestemmelsesomraader: plan.bestemmelsesomraader.map((omraade) => `${omraade.kode} ${omraade.navn}`),
-    bestemmelser: plan.planbestemmelser.map((b) => `${b.tema}: ${b.tekst}`)
+    bestemmelser: plan.planbestemmelser.map((b) => `${b.tema}: ${b.tekst}`),
+    vindusbestemmelser: relevanteBestemmelser.map((b) => ({
+      bestemmelseId: b.bestemmelseId,
+      tema: b.tema,
+      tekst: b.tekst,
+      relevantFor: b.relevantFor ?? [],
+      krav: b.krav ?? []
+    }))
   };
 }
