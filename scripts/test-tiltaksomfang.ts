@@ -117,6 +117,23 @@ const planMedVinduskrav = {
   check("eksplisitt konstruksjonsendring vinner", svar.endringBaerekonstruksjon.verdi === true, JSON.stringify(svar.endringBaerekonstruksjon));
 }
 
+{
+  const svar = vurder("Vinduet får samme form som i dag, men det vil bli litt større. Arbeidet krever ikke endring i bærende vegg eller konstruksjon", {
+    history: [
+      { role: "bruker", message: "Vinduet skal ikke endre form eller farge." },
+      { role: "assistent", message: "Kan du svare på det som fortsatt mangler: får vinduet samme form og plassering som i dag? Krever arbeidet endring i bærende vegg eller konstruksjon?" }
+    ],
+    modellSvar: {
+      oppfolgingssporsmaal: "Kan du svare på det som fortsatt mangler: får vinduet samme plassering som i dag? Krever arbeidet endring i bærende vegg eller konstruksjon?"
+    }
+  });
+
+  check("større vindu avklarer fasadeendring", svar.fasadeendring.verdi === true, JSON.stringify(svar.fasadeendring));
+  check("ikke endring i bærende avkrefter konstruksjon", svar.endringBaerekonstruksjon.verdi === false, JSON.stringify(svar.endringBaerekonstruksjon));
+  check("tidligere gruppert fargesvar brukes", svar.tiltak?.visuelt.fargeEndres === false, JSON.stringify(svar.tiltak?.visuelt));
+  check("stale oppfølging ryddes når begge felt er avklart", svar.oppfolgingssporsmaal === null, svar.oppfolgingssporsmaal || "");
+}
+
 /* ── Fasadeendring og negasjon ───────────────────────────────────────────── */
 
 {

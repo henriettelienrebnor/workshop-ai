@@ -72,8 +72,8 @@ const fasadeKjennetegn: FasadeKjennetegn[] = [
   {
     id: "form",
     label: "form",
-    endret: ["annen form", "ny form", "endret form"],
-    uendret: ["samme form", "lik form", "uendret form"],
+    endret: ["annen form", "ny form", "endre form", "endret form"],
+    uendret: ["samme form", "lik form", "uendret form", "ikke endre form", "ingen formendring"],
     planord: ["form", "hovedinndeling", "inndeling"]
   },
   {
@@ -218,6 +218,21 @@ function harBredUendretBeskrivelse(tekst: string): boolean {
 function harUendretKjennetegn(tekst: string, kjennetegn: FasadeKjennetegn): boolean {
   if (treff(tekst, kjennetegn.uendret)) return true;
   const ordliste = tekst.split(" ").filter(Boolean);
+
+  for (let indeks = 0; indeks < ordliste.length; indeks += 1) {
+    const erNegertEndring =
+      ordliste[indeks] === "ikke" && ["endre", "endrer", "endres", "endret"].includes(ordliste[indeks + 1] || "");
+    const erIngenEndring =
+      ordliste[indeks] === "ingen" && ["endring", "endringer", "endringeri"].includes(ordliste[indeks + 1] || "");
+    if (!erNegertEndring && !erIngenEndring) continue;
+
+    const scope = ordliste.slice(indeks + 1, indeks + 9);
+    const scopeSet = new Set(scope);
+    if (kjennetegn.planord.some((planord) => normalizeText(planord).split(" ").some((ord) => scopeSet.has(ord)))) {
+      return true;
+    }
+  }
+
   const markorIndex = ordliste.findIndex((ord) => ["samme", "lik", "likt", "uendret"].includes(ord));
   if (markorIndex === -1) return false;
 
@@ -269,7 +284,7 @@ function relevanteKjennetegnFraPlan(body: TiltaksomfangKropp): FasadeKjennetegn[
 function vurderFasadeendring(body: TiltaksomfangKropp): { felt: Feltavklaring; mangler: string[]; avklart: string[]; kilde: string } {
   const tekst = tiltaksomfangTekst(body);
   const relevante = relevanteKjennetegnFraPlan(body);
-  const endret = relevante.find((kjennetegn) => treff(tekst, kjennetegn.endret) && !treff(tekst, kjennetegn.uendret));
+  const endret = relevante.find((kjennetegn) => treff(tekst, kjennetegn.endret) && !harUendretKjennetegn(tekst, kjennetegn));
   if (endret) {
     return { felt: { verdi: true, confidence: 0.9 }, mangler: [], avklart: [endret.label], kilde: `Bruker oppga endring i ${endret.label}.` };
   }
@@ -305,6 +320,8 @@ function vurderBaerekonstruksjon(body: TiltaksomfangKropp): Feltavklaring {
   const avkreftet = treff(tekst, [
     "ikke bærende",
     "ikke baerende",
+    "ikke endring i bærende",
+    "ikke endring i baerende",
     "ikke bærekonstruksjon",
     "ikke baerekonstruksjon",
     "ingen endring i bærekonstruksjon",
@@ -498,6 +515,8 @@ export function medDeterministiskTiltaksomfangSjekk(svar: Tiltaksavklaring, body
     neste.oppfolgingssporsmaal = `Planbestemmelsene trenger mer informasjon: ${kravmangler.map((krav) => krav.veiledning).join(" ")}`;
   } else if (neste.fasadeendring.verdi === null || neste.endringBaerekonstruksjon.verdi === null) {
     neste.oppfolgingssporsmaal = byggTiltaksomfangOppfolging(fasade, baering, body);
+  } else {
+    neste.oppfolgingssporsmaal = null;
   }
   return neste;
 }
