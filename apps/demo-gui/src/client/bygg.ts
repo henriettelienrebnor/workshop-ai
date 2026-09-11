@@ -166,6 +166,17 @@ function addByggesoknadSummary(text: string): void {
   chat.scrollTop = chat.scrollHeight;
 }
 
+function viserSoknadsplikt(text: string): boolean {
+  const normalized = text.toLocaleLowerCase("nb-NO");
+  return [
+    "må søke",
+    "må sende inn",
+    "søknadspliktig",
+    "krever søknad",
+    "må sende søknad",
+  ].some((uttrykk) => normalized.includes(uttrykk));
+}
+
 function visSoknadslenke(): void {
   if (document.getElementById("fyllUtByggesoknad")) return;
 
@@ -190,9 +201,30 @@ function normalize(text: string): string {
 
 function isBaerekonstruksjonVeiledningssporsmaal(text: string): boolean {
   const lower = normalize(text);
-  const sporreord = ["hva", "hvilke", "hvordan", "betyr", "mener", "innebærer", "innebaerer", "forklar", "si mer"];
-  const tema = ["bærekonstruksjon", "baerekonstruksjon", "bærende", "baerende", "bærevegg", "baerevegg", "konstruksjon"];
-  return sporreord.some((ord) => lower.includes(ord)) && tema.some((ord) => lower.includes(ord));
+  const sporreord = [
+    "hva",
+    "hvilke",
+    "hvordan",
+    "betyr",
+    "mener",
+    "innebærer",
+    "innebaerer",
+    "forklar",
+    "si mer",
+  ];
+  const tema = [
+    "bærekonstruksjon",
+    "baerekonstruksjon",
+    "bærende",
+    "baerende",
+    "bærevegg",
+    "baerevegg",
+    "konstruksjon",
+  ];
+  return (
+    sporreord.some((ord) => lower.includes(ord)) &&
+    tema.some((ord) => lower.includes(ord))
+  );
 }
 
 function baerekonstruksjonVeiledning(): string {
@@ -240,13 +272,20 @@ async function lagreStegsvar(stegId: string, svar: unknown): Promise<void> {
 async function fullforByggesoknadsvurdering(): Promise<void> {
   await nesteSteg();
   const sjekk = await kjorHandling();
-  addMessage("assistant", textValue(sjekk.melding || "Vurderingen er fullført."));
+  const sjekkMelding = textValue(sjekk.melding || "Vurderingen er fullført.");
+  addMessage("assistant", sjekkMelding);
+  if (viserSoknadsplikt(sjekkMelding)) visSoknadslenke();
 
   if (oekt?.status === "AVVIST") return;
 
   await nesteSteg();
   const oppsummering = await kjorHandling();
   if (oppsummering.tekst) addByggesoknadSummary(textValue(oppsummering.tekst));
+  if (oppsummering.tekst) {
+    const oppsummeringstekst = textValue(oppsummering.tekst);
+    addMessage("assistant", oppsummeringstekst);
+    if (viserSoknadsplikt(oppsummeringstekst)) visSoknadslenke();
+  }
   await nesteSteg();
   visSoknadslenke();
 }
@@ -260,7 +299,9 @@ async function handleTiltaksmelding(text: string): Promise<void> {
 
   const steg = oekt.aktivtSteg;
   if (steg?.id !== "avklar-tiltak") {
-    throw new Error(`Forventet avklar-tiltak, men står på ${steg?.id || "ukjent steg"}.`);
+    throw new Error(
+      `Forventet avklar-tiltak, men står på ${steg?.id || "ukjent steg"}.`,
+    );
   }
 
   const veiledningssporsmaal = isBaerekonstruksjonVeiledningssporsmaal(text);
@@ -300,9 +341,12 @@ async function handleTiltaksmelding(text: string): Promise<void> {
   });
   tiltaksomfangHistorikk = [];
   tiltaksomfangRunder = 0;
-  addMessage("assistant", veiledningssporsmaal
-    ? `${baerekonstruksjonVeiledning()}\n\nTakk, da har jeg det jeg trenger om tiltaket.`
-    : "Takk, da har jeg det jeg trenger om tiltaket.");
+  addMessage(
+    "assistant",
+    veiledningssporsmaal
+      ? `${baerekonstruksjonVeiledning()}\n\nTakk, da har jeg det jeg trenger om tiltaket.`
+      : "Takk, da har jeg det jeg trenger om tiltaket.",
+  );
   await fullforByggesoknadsvurdering();
 }
 
@@ -577,6 +621,15 @@ async function init(): Promise<void> {
 scanButton.addEventListener("click", () => void receiveWalletData());
 
 chatForm.addEventListener("submit", (event) => void sendMessage(event));
+
+chatInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    void sendMessage(
+      new SubmitEvent("submit", { bubbles: true, cancelable: true }),
+    );
+  }
+});
 
 sendNeighborNotice.addEventListener("click", () => {
   applicationOverview.hidden = true;
