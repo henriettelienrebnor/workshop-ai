@@ -9,6 +9,7 @@ const walletPanel = krevEl("walletPanel");
 const chatPanel = krevEl("chatPanel");
 const applicationPanel = krevEl("applicationPanel");
 const applicationOverview = krevEl("applicationOverview");
+const goToApplication = krevEl<HTMLButtonElement>("goToApplication");
 const walletOverview = krevEl("walletOverview");
 const sendNeighborNotice = krevEl<HTMLButtonElement>("sendNeighborNotice");
 const neighborNoticeStatus = krevEl("neighborNoticeStatus");
@@ -630,6 +631,8 @@ chatInput.addEventListener("keydown", (event) => {
     );
   }
 });
+
+goToApplication.addEventListener("click", openApplicationForm);
 
 sendNeighborNotice.addEventListener("click", () => {
   applicationOverview.hidden = true;

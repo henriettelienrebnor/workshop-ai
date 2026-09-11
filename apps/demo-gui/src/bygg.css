@@ -162,7 +162,9 @@ textarea {
   min-width: 0;
   padding: 8px;
 }
-
+#goToApplication {
+  opacity: 0;
+}
 /* UU: Skjult for seende, tilgjengelig for skjermleser */
 .visually-hidden {
   position: absolute;
