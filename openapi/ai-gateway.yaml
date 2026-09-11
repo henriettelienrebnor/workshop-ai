@@ -4,7 +4,7 @@ info:
   version: 0.2.0
   description: |
     AI-abstraksjonslag for dialogforslag, oppsummering, klarspråk, intensjonstolkning og dynamisk verktøyoppdagelse.
-    Støtter mock, Ollama, OpenRouter og AWS Bedrock som provider (AI_PROVIDER-env).
+    Støtter mock, Ollama, OpenRouter, Telenor AI Factory og AWS Bedrock som provider (AI_PROVIDER-env).
     Provideren kan byttes i en kjørende instans via /admin, uten restart.
 servers:
   - url: http://localhost:8082
@@ -31,7 +31,7 @@ paths:
                 properties:
                   status: { type: string, example: ok }
                   tjeneste: { type: string, example: ai-gateway }
-                  provider: { type: string, enum: [mock, ollama, openrouter, bedrock] }
+                  provider: { type: string, enum: [mock, ollama, openrouter, telenor_ai_factory, bedrock] }
                   modell: { type: string, nullable: true, example: "ollama:qwen2.5:14b" }
                   modellNaaBar:
                     type: boolean

@@ -121,12 +121,15 @@ type Modellvalg = {
   task?: string;
 };
 
-const AI_PROVIDERS = ["mock", "ollama", "openrouter", "bedrock"];
+const AI_PROVIDERS = ["mock", "ollama", "openrouter", "telenor_ai_factory", "bedrock"];
 let aiProvider = (process.env.AI_PROVIDER || "mock").toLowerCase();
 const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 const ollamaModel = process.env.OLLAMA_MODEL || "qwen2.5:7b";
 const openRouterApiKey = process.env.OPENROUTER_API_KEY || "";
 const openRouterModel = process.env.OPENROUTER_MODEL || "mistralai/mistral-7b-instruct:free";
+const telenorAiFactoryBaseUrl = process.env.TELENOR_AI_FACTORY_BASE_URL || process.env.TELENOR_AI_FACTORY_URL || "";
+const telenorAiFactoryApiKey = process.env.TELENOR_AI_FACTORY_API_KEY || "";
+const telenorAiFactoryModel = process.env.TELENOR_AI_FACTORY_MODEL || "TELENOR_AI_FACTORY-KI";
 
 // Curated, not fetched from AWS: bedrock:ListFoundationModels is a permission of its
 // own, and the IAM policy for this sandbox is meant to grant InvokeModel on a handful
@@ -234,7 +237,7 @@ function docsHtml(): string {
         <li><a href="/trace"><code>GET /trace</code></a> - hva modellen faktisk fikk og svarte</li>
         <li><code>GET /trace.json</code> - samme som JSON. <code>?sporingsId=</code>, <code>?task=</code>, <code>?limit=</code></li>
         <li><code>GET /helse</code> - svarer provideren?</li>
-        <li><a href="/admin"><code>GET /admin</code></a> - bytt provider (mock/ollama/openrouter/bedrock) uten restart</li>
+        <li><a href="/admin"><code>GET /admin</code></a> - bytt provider (mock/ollama/openrouter/telenor_ai_factory/bedrock) uten restart</li>
       </ul>
     </body>
   </html>`;
@@ -881,7 +884,7 @@ async function chooseToolsWithAi(body: AiKropp) {
   const verktoyNavn = (body?.verktoy || []).map((v) => (typeof v === "string" ? v : v.name || ""));
   const prompt = buildToolChoicePrompt(body);
 
-  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "bedrock") {
+  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "telenor_ai_factory" && aiProvider !== "bedrock") {
     return heuristisk;
   }
 
@@ -1406,7 +1409,7 @@ async function getTiltaksavklaringFromModel(body: AiKropp) {
 }
 
 async function tolkTiltaksomfangMedAi(body: AiKropp) {
-  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "bedrock") {
+  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "telenor_ai_factory" && aiProvider !== "bedrock") {
     return { ...medDeterministiskTiltaksomfangSjekk(TILTAKSOMFANG_FALLBACK, body), syntetisk: true, modell: "mock-ai-gateway" };
   }
 
@@ -1509,6 +1512,42 @@ async function callOpenRouter(prompt: string, temperature: number, systemMessage
   return {
     tekst: data?.choices?.[0]?.message?.content?.trim() || "",
     modell: `openrouter:${openRouterModel}`
+  };
+}
+
+async function callTelenorAiFactory(prompt: string, temperature: number, systemMessage: string, signal: AbortSignal): Promise<Modellsvar> {
+  if (!telenorAiFactoryBaseUrl) {
+    throw new Error("TELENOR_AI_FACTORY_BASE_URL mangler");
+  }
+  if (!telenorAiFactoryApiKey) {
+    throw new Error("TELENOR_AI_FACTORY_API_KEY mangler");
+  }
+  const url = telenorAiFactoryBaseUrl.endsWith("/chat/completions")
+    ? telenorAiFactoryBaseUrl
+    : `${telenorAiFactoryBaseUrl.replace(/\/$/, "")}/v1/chat/completions`;
+  const svar = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${telenorAiFactoryApiKey}`
+    },
+    body: JSON.stringify({
+      model: telenorAiFactoryModel,
+      temperature,
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: prompt }
+      ]
+    }),
+    signal
+  });
+  if (!svar.ok) {
+    throw new Error(`Telenor AI Factory svarte med status ${svar.status}`);
+  }
+  const data = (await svar.json()) as { choices?: { message?: { content?: string } }[] };
+  return {
+    tekst: data?.choices?.[0]?.message?.content?.trim() || "",
+    modell: `telenor_ai_factory:${telenorAiFactoryModel}`
   };
 }
 
@@ -1687,7 +1726,12 @@ async function buildProviderStatus() {
       sdkError: sdk.feil
     },
     ollama: { model: ollamaModel, baseUrl: ollamaBaseUrl },
-    openrouter: { model: openRouterModel, keyConfigured: Boolean(openRouterApiKey) }
+    openrouter: { model: openRouterModel, keyConfigured: Boolean(openRouterApiKey) },
+    telenorAiFactory: {
+      model: telenorAiFactoryModel,
+      urlConfigured: Boolean(telenorAiFactoryBaseUrl),
+      keyConfigured: Boolean(telenorAiFactoryApiKey)
+    }
   };
 }
 
@@ -1723,6 +1767,17 @@ async function checkProvider() {
     const modell = `openrouter:${openRouterModel}`;
     if (!openRouterApiKey) {
       return { naaBar: false, modell, feil: "OPENROUTER_API_KEY mangler" };
+    }
+    return { naaBar: true, modell };
+  }
+
+  if (aiProvider === "telenor_ai_factory") {
+    const modell = `telenor_ai_factory:${telenorAiFactoryModel}`;
+    if (!telenorAiFactoryBaseUrl) {
+      return { naaBar: false, modell, feil: "TELENOR_AI_FACTORY_BASE_URL mangler" };
+    }
+    if (!telenorAiFactoryApiKey) {
+      return { naaBar: false, modell, feil: "TELENOR_AI_FACTORY_API_KEY mangler" };
     }
     return { naaBar: true, modell };
   }
@@ -1776,6 +1831,8 @@ async function callModel(prompt: string, valg: Modellvalg = {}): Promise<Modells
       svar = await callOllama(prompt, temperature, systemMessage, signal);
     } else if (aiProvider === "openrouter") {
       svar = await callOpenRouter(prompt, temperature, systemMessage, signal);
+    } else if (aiProvider === "telenor_ai_factory") {
+      svar = await callTelenorAiFactory(prompt, temperature, systemMessage, signal);
     } else if (aiProvider === "bedrock") {
       svar = await callBedrock(prompt, temperature, systemMessage, signal);
     } else {
@@ -1894,7 +1951,7 @@ async function interpretReplyWithAi(body: AiKropp) {
     };
   }
 
-  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "bedrock") {
+  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "telenor_ai_factory" && aiProvider !== "bedrock") {
     return {
       ...fallback,
       syntetisk: true,
@@ -1962,7 +2019,7 @@ async function chooseProcessWithAi(body: AiKropp) {
     };
   }
 
-  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "bedrock") {
+  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "telenor_ai_factory" && aiProvider !== "bedrock") {
     return {
       ...fallback,
       syntetisk: true,
@@ -2002,7 +2059,7 @@ async function buildAiResponse(type: string, body: AiKropp) {
 
   const prompt = buildPrompt(type, body, mockSvar.tekst);
 
-  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "bedrock") {
+  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "telenor_ai_factory" && aiProvider !== "bedrock") {
     return mockSvar;
   }
 
@@ -2084,7 +2141,7 @@ async function answerCitizenQuestion(body: AiKropp) {
     );
   }
 
-  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "bedrock") {
+  if (aiProvider !== "ollama" && aiProvider !== "openrouter" && aiProvider !== "telenor_ai_factory" && aiProvider !== "bedrock") {
     return { ...base, tekst: buildTryggSvar(kontekst), modell: "mock-ai-gateway" };
   }
 
