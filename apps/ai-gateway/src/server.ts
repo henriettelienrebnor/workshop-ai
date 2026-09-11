@@ -1390,6 +1390,7 @@ function parseJsonObject(tekst: string): Record<string, unknown> | null {
   }
 }
 
+
 async function getTiltaksavklaringFromModel(body: AiKropp) {
   const { tekst, modell } = await callModel(buildTiltaksomfangPrompt(body), {
     temperature: 0,
