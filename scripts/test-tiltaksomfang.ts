@@ -66,6 +66,42 @@ const planMedVinduskrav = {
   }
 };
 
+const planMedStorrelseskrav = {
+  reguleringsplan: {
+    planId: "test-plan-storrelse",
+    vindusbestemmelser: [
+      {
+        bestemmelseId: "B13",
+        tema: "søknadspliktige_tiltak",
+        tekst: "Nye eller større vindusåpninger mot gate skal forelegges kommunen før gjennomføring.",
+        krav: [
+          {
+            kravId: "avklar-mot-gate-ved-storrelsesendring",
+            gjelder: "tiltak.visuelt.storrelseEndres",
+            naar: true,
+            paakrevdeFelter: ["tiltak.plassering.motGate"],
+            veiledning: "Vender vinduet mot gate?"
+          }
+        ]
+      }
+    ]
+  }
+};
+
+const planUtenStorrelsesord = {
+  reguleringsplan: {
+    planId: "test-plan-uten-storrelse",
+    vindusbestemmelser: [
+      {
+        bestemmelseId: "B14",
+        tema: "vinduer",
+        tekst: "Vinduer mot gate skal ha samme hovedinndeling og visuelle uttrykk som eksisterende vinduer.",
+        krav: []
+      }
+    ]
+  }
+};
+
 /* ── Samtalehistorikk og gjentatte spørsmål ──────────────────────────────── */
 
 {
@@ -97,6 +133,66 @@ const planMedVinduskrav = {
   });
 
   check("assistentens bærende-spørsmål gir ikke positiv konstruksjon", svar.endringBaerekonstruksjon.verdi === false, JSON.stringify(svar.endringBaerekonstruksjon));
+}
+
+{
+  const svar = vurder("nei", {
+    history: [
+      {
+        role: "assistent",
+        message: "Fører vinduet til endring i bærende konstruksjon?"
+      }
+    ]
+  });
+
+  check("nei på bærende-spørsmål avkrefter konstruksjon", svar.endringBaerekonstruksjon.verdi === false, JSON.stringify(svar.endringBaerekonstruksjon));
+  check("oppfølging spør ikke om bærende etter nei", !svar.oppfolgingssporsmaal?.includes("bærende"), svar.oppfolgingssporsmaal || "");
+}
+
+{
+  const svar = vurder("Hva innebærer endring i bærende vegg eller konstruksjon?", {
+    history: [{ role: "bruker", message: "Vinduet skal ha samme plassering som i dag." }]
+  });
+
+  check("veiledningsspørsmål om bærende tolkes ikke som ja", svar.endringBaerekonstruksjon.verdi === null, JSON.stringify(svar.endringBaerekonstruksjon));
+  check("veiledningsspørsmål om bærende spør videre om konstruksjon", svar.oppfolgingssporsmaal?.includes("bærende") === true, svar.oppfolgingssporsmaal || "");
+}
+
+{
+  const svar = vurder("Vinduet skal være større enn eksisterende vindu.");
+
+  check("større vindu er nok til fasadeendring", svar.fasadeendring.verdi === true, JSON.stringify(svar.fasadeendring));
+  check("større vindu gir høy confidence", svar.fasadeendring.confidence >= 0.7, JSON.stringify(svar.fasadeendring));
+  check("større vindu trekkes ut som størrelse endres", svar.tiltak?.visuelt.storrelseEndres === true, JSON.stringify(svar.tiltak?.visuelt));
+  check("større vindu spør bare om konstruksjon", !svar.oppfolgingssporsmaal?.includes("samme form") && !svar.oppfolgingssporsmaal?.includes("plassering") && !svar.oppfolgingssporsmaal?.includes("farge"), svar.oppfolgingssporsmaal || "");
+}
+
+{
+  const svar = vurder("Vinduet skal være større enn dagens.", { kontekst: planUtenStorrelsesord });
+
+  check("større enn dagens er fasadeendring selv når planen ikke nevner størrelse", svar.fasadeendring.verdi === true, JSON.stringify(svar.fasadeendring));
+  check("større enn dagens med plan gir høy confidence", svar.fasadeendring.confidence >= 0.7, JSON.stringify(svar.fasadeendring));
+}
+
+{
+  const svar = vurder("Vinduet skal bli større enn dagens.");
+
+  check("større enn dagens er fasadeendring", svar.fasadeendring.verdi === true, JSON.stringify(svar.fasadeendring));
+  check("større enn dagens trekkes ut som størrelse endres", svar.tiltak?.visuelt.storrelseEndres === true, JSON.stringify(svar.tiltak?.visuelt));
+  check("større enn dagens konkluderer ikke med ingen søknad", svar.oppfolgingssporsmaal?.includes("bærende") === true, svar.oppfolgingssporsmaal || "");
+}
+
+{
+  const svar = vurder("Vinduet skal bli større enn dagens.", { kontekst: planMedStorrelseskrav });
+
+  check("større enn dagens med plan spør ikke om mot gate", !svar.oppfolgingssporsmaal?.includes("mot gate"), svar.oppfolgingssporsmaal || "");
+  check("større enn dagens med plan spør fortsatt om konstruksjon", svar.oppfolgingssporsmaal?.includes("bærende") === true, svar.oppfolgingssporsmaal || "");
+}
+
+{
+  const svar = vurder("Vinduet blir større, men det blir ingen endring i bærende konstruksjon.", { kontekst: planMedStorrelseskrav });
+
+  check("større vindu med avklart konstruksjon trenger ikke flere planfelt", svar.oppfolgingssporsmaal === null, svar.oppfolgingssporsmaal || "");
 }
 
 /* ── Samme åpning avklarer konstruksjon ──────────────────────────────────── */

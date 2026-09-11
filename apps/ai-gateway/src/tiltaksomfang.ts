@@ -270,9 +270,29 @@ function sporsmalsliste(deler: string[]): string {
 }
 
 function erVeiledningssporsmaalOmBaering(tekst: string): boolean {
-  const sporreord = ["hva", "hvilke", "hvordan", "betyr", "mener", "forklar", "si mer"];
+  const sporreord = ["hva", "hvilke", "hvordan", "betyr", "mener", "innebærer", "innebaerer", "forklar", "si mer"];
   const tema = ["bærekonstruksjon", "baerekonstruksjon", "bærende", "baerende", "bærevegg", "baerevegg", "konstruksjon"];
   return sporreord.some((ord) => treff(tekst, [ord])) && tema.some((ord) => treff(tekst, [ord]));
+}
+
+function sisteAssistentmelding(body: TiltaksomfangKropp): string {
+  const historikk = Array.isArray(body?.history) ? body.history : [];
+  const siste = [...historikk].reverse().find((tur) => tur?.role === "assistent" || tur?.role === "assistant");
+  return normalizeText(siste?.message || "");
+}
+
+function erBaeringJaNeiSporsmaal(tekst: string): boolean {
+  const harBaering = ["bærekonstruksjon", "baerekonstruksjon", "bærende", "baerende", "bærevegg", "baerevegg", "konstruksjon"].some((ord) => treff(tekst, [ord]));
+  const harEndring = ["endring", "endre", "endres", "berører", "berorer", "rører", "rorer", "krever", "fører", "forer"].some((ord) => treff(tekst, [ord]));
+  return harBaering && harEndring;
+}
+
+function svarPaaBaeringJaNeiSporsmaal(body: TiltaksomfangKropp): boolean | null {
+  if (!erBaeringJaNeiSporsmaal(sisteAssistentmelding(body))) return null;
+  const tekst = normalizeText(body?.tekst || "");
+  if (treff(tekst, ["nei", "nei det gjør det ikke", "nei det gjor det ikke", "det gjør det ikke", "det gjor det ikke"])) return false;
+  if (treff(tekst, ["ja", "ja det gjør det", "ja det gjor det", "det gjør det", "det gjor det"])) return true;
+  return null;
 }
 
 function relevanteKjennetegnFraPlan(body: TiltaksomfangKropp): FasadeKjennetegn[] {
@@ -283,6 +303,11 @@ function relevanteKjennetegnFraPlan(body: TiltaksomfangKropp): FasadeKjennetegn[
 
 function vurderFasadeendring(body: TiltaksomfangKropp): { felt: Feltavklaring; mangler: string[]; avklart: string[]; kilde: string } {
   const tekst = tiltaksomfangTekst(body);
+  const storrelse = fasadeKjennetegn[0];
+  if (treff(tekst, storrelse.endret) && !harUendretKjennetegn(tekst, storrelse)) {
+    return { felt: { verdi: true, confidence: 0.9 }, mangler: [], avklart: [storrelse.label], kilde: "Bruker oppga endring i størrelse." };
+  }
+
   const relevante = relevanteKjennetegnFraPlan(body);
   const endret = relevante.find((kjennetegn) => treff(tekst, kjennetegn.endret) && !harUendretKjennetegn(tekst, kjennetegn));
   if (endret) {
@@ -313,6 +338,11 @@ function vurderBaerekonstruksjon(body: TiltaksomfangKropp): Feltavklaring {
     return { verdi: null, confidence: 0.2 };
   }
 
+  const svarPaaSisteSporsmaal = svarPaaBaeringJaNeiSporsmaal(body);
+  if (svarPaaSisteSporsmaal !== null) {
+    return { verdi: svarPaaSisteSporsmaal, confidence: 0.9 };
+  }
+
   if (harBredUendretBeskrivelse(tekst)) {
     return { verdi: false, confidence: 0.85 };
   }
@@ -322,6 +352,8 @@ function vurderBaerekonstruksjon(body: TiltaksomfangKropp): Feltavklaring {
     "ikke baerende",
     "ikke endring i bærende",
     "ikke endring i baerende",
+    "ingen endring i bærende konstruksjon",
+    "ingen endring i baerende konstruksjon",
     "ikke bærekonstruksjon",
     "ikke baerekonstruksjon",
     "ingen endring i bærekonstruksjon",
@@ -475,12 +507,14 @@ function planstyrteOppfolgingsdeler(body: TiltaksomfangKropp): string[] {
   return deler;
 }
 
-function byggTiltaksomfangOppfolging(fasade: { mangler: string[]; avklart: string[] }, baering: Feltavklaring, body: TiltaksomfangKropp): string {
+function byggTiltaksomfangOppfolging(fasade: { mangler: string[]; avklart: string[] }, baering: Feltavklaring, body: TiltaksomfangKropp, storrelseAvgjorSoknad = false): string {
   const planTekst = normalizeText(JSON.stringify(body?.kontekst?.reguleringsplan || {}));
   const vernet = ["h570", "bevaring", "kulturmiljø", "kulturmiljo"].some((ord) => planTekst.includes(ord));
   const deler = [];
-  deler.push(...planstyrteOppfolgingsdeler(body));
-  if (fasade.mangler.length) {
+  if (!storrelseAvgjorSoknad) {
+    deler.push(...planstyrteOppfolgingsdeler(body));
+  }
+  if (!storrelseAvgjorSoknad && fasade.mangler.length) {
     deler.push(`får vinduet samme ${naturligListe(fasade.mangler)} som i dag`);
   }
   if (baering.verdi === null) {
@@ -500,7 +534,8 @@ export function medDeterministiskTiltaksomfangSjekk(svar: Tiltaksavklaring, body
   const baering = vurderBaerekonstruksjon(body);
   const tiltak = byggVindustiltak(svar, body, fasade, baering);
   const kravvurdering = vurderStrukturerteKrav(tiltak, body);
-  const kravmangler = kravvurdering.filter((krav) => krav.status === "mangler_fakta");
+  const storrelseAvgjorSoknad = tiltak.visuelt.storrelseEndres === true;
+  const kravmangler = storrelseAvgjorSoknad ? [] : kravvurdering.filter((krav) => krav.status === "mangler_fakta");
   const neste: Tiltaksavklaring = {
     ...svar,
     fasadeendring: fasade.felt,
@@ -514,7 +549,7 @@ export function medDeterministiskTiltaksomfangSjekk(svar: Tiltaksavklaring, body
   if (kravmangler.length) {
     neste.oppfolgingssporsmaal = `Planbestemmelsene trenger mer informasjon: ${kravmangler.map((krav) => krav.veiledning).join(" ")}`;
   } else if (neste.fasadeendring.verdi === null || neste.endringBaerekonstruksjon.verdi === null) {
-    neste.oppfolgingssporsmaal = byggTiltaksomfangOppfolging(fasade, baering, body);
+    neste.oppfolgingssporsmaal = byggTiltaksomfangOppfolging(fasade, baering, body, storrelseAvgjorSoknad);
   } else {
     neste.oppfolgingssporsmaal = null;
   }

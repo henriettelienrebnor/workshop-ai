@@ -152,6 +152,24 @@ function visSoknadslenke(): void {
   chat.scrollTop = chat.scrollHeight;
 }
 
+function normalize(text: string): string {
+  return text.toLocaleLowerCase("nb-NO").trim();
+}
+
+function isBaerekonstruksjonVeiledningssporsmaal(text: string): boolean {
+  const lower = normalize(text);
+  const sporreord = ["hva", "hvilke", "hvordan", "betyr", "mener", "innebærer", "innebaerer", "forklar", "si mer"];
+  const tema = ["bærekonstruksjon", "baerekonstruksjon", "bærende", "baerende", "bærevegg", "baerevegg", "konstruksjon"];
+  return sporreord.some((ord) => lower.includes(ord)) && tema.some((ord) => lower.includes(ord));
+}
+
+function baerekonstruksjonVeiledning(): string {
+  return [
+    "Med endring i bærekonstruksjon mener vi at arbeidet berører deler av bygget som holder huset oppe, for eksempel bærende vegg, bjelker eller andre konstruksjonsdeler rundt åpningen.",
+    "Å bytte et vindu i samme åpning er ofte ikke en slik endring. Det kan bli det hvis åpningen må gjøres større, flyttes, lages på nytt, eller hvis veggen rundt må forsterkes eller bygges om.",
+  ].join(" ");
+}
+
 async function tolkTiltaksomfang(
   text: string,
 ): Promise<Tiltaksavklaring | null> {
@@ -213,6 +231,8 @@ async function handleTiltaksmelding(text: string): Promise<void> {
     throw new Error(`Forventet avklar-tiltak, men står på ${steg?.id || "ukjent steg"}.`);
   }
 
+  const veiledningssporsmaal = isBaerekonstruksjonVeiledningssporsmaal(text);
+
   tiltaksomfangHistorikk.push({ role: "bruker", message: text });
   const avklaring = await tolkTiltaksomfang(text);
   if (!avklaring) return;
@@ -230,11 +250,14 @@ async function handleTiltaksmelding(text: string): Promise<void> {
       avklaring.oppfolgingssporsmaal ||
       "Kan du si litt mer om størrelse, form og plassering på vinduet, og om veggen rundt må endres?";
     tiltaksomfangHistorikk.push({ role: "assistent", message: oppfolging });
+    const melding = veiledningssporsmaal
+      ? `${baerekonstruksjonVeiledning()}\n\n${oppfolging}`
+      : oppfolging;
     addMessage(
       "assistant",
       tiltaksomfangRunder >= tiltaksomfangMaksRunder
-        ? "Jeg klarer ikke å avklare dette helt gjennom samtale ennå. Skriv gjerne direkte om dette er en fasadeendring, og om bærekonstruksjonen berøres."
-        : oppfolging,
+        ? `${veiledningssporsmaal ? `${baerekonstruksjonVeiledning()}\n\n` : ""}Jeg klarer ikke å avklare dette helt gjennom samtale ennå. Skriv gjerne direkte om dette er en fasadeendring, og om bærekonstruksjonen berøres.`
+        : melding,
     );
     return;
   }
@@ -245,7 +268,9 @@ async function handleTiltaksmelding(text: string): Promise<void> {
   });
   tiltaksomfangHistorikk = [];
   tiltaksomfangRunder = 0;
-  addMessage("assistant", "Takk, da har jeg det jeg trenger om tiltaket.");
+  addMessage("assistant", veiledningssporsmaal
+    ? `${baerekonstruksjonVeiledning()}\n\nTakk, da har jeg det jeg trenger om tiltaket.`
+    : "Takk, da har jeg det jeg trenger om tiltaket.");
   await fullforByggesoknadsvurdering();
 }
 
